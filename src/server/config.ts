@@ -21,6 +21,10 @@ const configValidator = toValidator(
     redisUrl: s.optional(s.string().check(s.minLength(1))),
     /** `web` = HTTP only, `worker` = background jobs only, `all` = both. */
     serverRole: s._default(s.enum(['web', 'worker', 'all']), 'all'),
+    /** Push notification driver: `dry-run` logs sends, `expo` calls the Expo push API. */
+    pushDriver: s._default(s.enum(['dry-run', 'expo']), 'dry-run'),
+    /** Bearer token for /api/admin/*; undefined disables the admin API entirely. */
+    adminToken: s.optional(s.string().check(s.minLength(16))),
     shutdownDrainMs: s._default(s.int().check(s.gte(0), s.lte(60_000)), 3000),
   }),
 );
@@ -29,6 +33,10 @@ export type ServerConfig = Infer<typeof configValidator>;
 
 function numberOrUndefined(value: string | undefined): number | undefined {
   return value === undefined || value === '' ? undefined : Number(value);
+}
+
+function stringOrUndefined(value: string | undefined): string | undefined {
+  return value === undefined || value === '' ? undefined : value;
 }
 
 export function loadServerConfig(
@@ -46,6 +54,8 @@ export function loadServerConfig(
     pubsubDriver: env.PUBSUB_DRIVER,
     redisUrl: env.REDIS_URL,
     serverRole: env.SERVER_ROLE,
+    pushDriver: env.PUSH_DRIVER,
+    adminToken: stringOrUndefined(env.ADMIN_TOKEN),
     shutdownDrainMs: numberOrUndefined(env.SHUTDOWN_DRAIN_MS),
   });
 

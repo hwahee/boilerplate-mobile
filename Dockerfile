@@ -5,8 +5,12 @@ FROM oven/bun:1.3 AS build
 WORKDIR /app
 
 # Install with a frozen lockfile first, so source changes don't bust the layer.
+# `--filter='.'` installs the root workspace only: the mobile app's native
+# dependencies have no place in a server image (it ships through EAS), but its
+# package.json must be present for the lockfile to resolve.
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile --ignore-scripts
+COPY apps/mobile/package.json apps/mobile/package.json
+RUN bun install --frozen-lockfile --ignore-scripts --filter='.'
 
 COPY . .
 RUN bun run build

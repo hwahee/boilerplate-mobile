@@ -4,10 +4,13 @@
  * Same-origin requests (no Origin header, or Origin matching the host) are
  * unaffected by CORS entirely.
  */
+import { PLATFORM_HEADER } from '@shared/api/headers';
 import { VERSION_HEADER } from '@shared/api/version';
 
 const ALLOWED_METHODS = 'GET, POST, PATCH, PUT, DELETE, OPTIONS';
-const ALLOWED_HEADERS = `content-type, accept-language, ${VERSION_HEADER}`;
+// `authorization` is for the admin API; `x-platform` for native callers.
+// (Native apps are not subject to CORS at all — this is for browser callers.)
+const ALLOWED_HEADERS = `content-type, accept-language, authorization, ${VERSION_HEADER}, ${PLATFORM_HEADER}`;
 
 function isOriginAllowed(origin: string | null, allowedOrigins: readonly string[]): boolean {
   return origin !== null && allowedOrigins.includes(origin);

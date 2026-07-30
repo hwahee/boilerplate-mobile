@@ -2,10 +2,17 @@
  * /api/todos — REST resource following every repo convention:
  * pagination/sort/filter (@shared/api/pagination), the error envelope,
  * schema validation at the boundary, and UTC-only timestamps.
+ *
+ * The list endpoint answers in TWO pagination modes from one implementation:
+ * numbered pages for the browser client, and cursor pages for the mobile
+ * app's infinite scroll (`?limit=`/`?cursor=`, see
+ * @shared/api/cursor-pagination). Filters and sorting are identical.
  */
+import { isCursorQuery } from '@shared/api/cursor-pagination';
 import { searchParamsToObject } from '@shared/api/pagination';
 import {
   createTodoValidator,
+  listTodosCursorQueryValidator,
   listTodosQueryValidator,
   updateTodoValidator,
 } from '@shared/domain/todo';
@@ -16,11 +23,19 @@ import { apiRoute, json, type HttpDeps } from '../http/respond';
 export function todoCollectionRoutes(container: Container, deps: HttpDeps) {
   return apiRoute<'/api/todos'>(
     {
-      /** GET /api/todos?page&pageSize&sortBy&sortOrder&status&q → Page<Todo> */
+      /**
+       * GET /api/todos?page&pageSize&sortBy&sortOrder&status&q → Page<Todo>
+       * GET /api/todos?limit&cursor&sortBy&sortOrder&status&q   → CursorPage<Todo>
+       */
       GET: async (req) => {
         const params = new URL(req.url).searchParams;
         params.delete('lang'); // locale override is not part of the list query
-        const query = listTodosQueryValidator.parse(searchParamsToObject(params));
+        const raw = searchParamsToObject(params);
+        if (isCursorQuery(params)) {
+          const query = listTodosCursorQueryValidator.parse(raw);
+          return json(await container.todoService().listByCursor(query));
+        }
+        const query = listTodosQueryValidator.parse(raw);
         return json(await container.todoService().list(query));
       },
 

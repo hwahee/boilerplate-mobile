@@ -8,30 +8,50 @@
  * construct services themselves.
  *
  * The container also owns driver selection (postgres vs memory persistence,
- * memory vs redis pub/sub), so swapping infrastructure is invisible to
- * services and routes.
+ * memory vs redis pub/sub, dry-run vs expo push), so swapping infrastructure
+ * is invisible to services and routes.
  */
 import type { ServerConfig } from './config';
 import { createPostgresDb, createPostgresUnitOfWork, type PostgresDb } from './db/postgres';
 import { createLogger, type Logger } from './lib/log';
 import { createPubSub, type PubSub } from './pubsub';
+import { createPushSender, type PushSender } from './push';
 import {
+  createMemoryAppConfigRepository,
   createMemoryAuditLogRepository,
+  createMemoryPushTokenRepository,
   createMemoryTodoRepository,
   createMemoryUnitOfWork,
+  createMemoryVersionPolicyRepository,
   MemoryStore,
 } from './repositories/memory';
 import {
+  createPostgresAppConfigRepository,
   createPostgresAuditLogRepository,
+  createPostgresPushTokenRepository,
   createPostgresTodoRepository,
+  createPostgresVersionPolicyRepository,
 } from './repositories/postgres';
-import type { AuditLogRepository, TodoRepository, UnitOfWork } from './repositories/types';
+import type {
+  AppConfigRepository,
+  AuditLogRepository,
+  PushTokenRepository,
+  TodoRepository,
+  UnitOfWork,
+  VersionPolicyRepository,
+} from './repositories/types';
+import { AppConfigService } from './services/app-config-service';
+import { PushTokenService } from './services/push-token-service';
 import { TodoService } from './services/todo-service';
+import { VersionPolicyService } from './services/version-policy-service';
 
 export interface Container {
   readonly config: ServerConfig;
   readonly log: Logger;
   todoService(): TodoService;
+  versionPolicyService(): VersionPolicyService;
+  appConfigService(): AppConfigService;
+  pushTokenService(): PushTokenService;
   pubsub(): PubSub;
   /** Health probe: is the persistence layer reachable? */
   dbPing(): Promise<boolean>;
@@ -55,6 +75,9 @@ function lazy<T>(factory: () => T): () => T {
 export interface ContainerOverrides {
   log?: Logger;
   pubsub?: PubSub;
+  pushSender?: PushSender;
+  /** Shrink the version-policy cache TTL in tests. */
+  versionPolicyCacheTtlMs?: number;
 }
 
 export function createContainer(
@@ -82,6 +105,21 @@ export function createContainer(
       ? createPostgresAuditLogRepository(postgres())
       : createMemoryAuditLogRepository(memoryStore()),
   );
+  const versionPolicyRepository = lazy<VersionPolicyRepository>(() =>
+    config.dbDriver === 'postgres'
+      ? createPostgresVersionPolicyRepository(postgres())
+      : createMemoryVersionPolicyRepository(memoryStore()),
+  );
+  const appConfigRepository = lazy<AppConfigRepository>(() =>
+    config.dbDriver === 'postgres'
+      ? createPostgresAppConfigRepository(postgres())
+      : createMemoryAppConfigRepository(memoryStore()),
+  );
+  const pushTokenRepository = lazy<PushTokenRepository>(() =>
+    config.dbDriver === 'postgres'
+      ? createPostgresPushTokenRepository(postgres())
+      : createMemoryPushTokenRepository(memoryStore()),
+  );
   const unitOfWork = lazy<UnitOfWork>(() =>
     config.dbDriver === 'postgres'
       ? createPostgresUnitOfWork(postgres())
@@ -89,6 +127,7 @@ export function createContainer(
   );
 
   const pubsub = lazy<PubSub>(() => overrides.pubsub ?? createPubSub(config));
+  const pushSender = lazy<PushSender>(() => overrides.pushSender ?? createPushSender(config, log));
 
   const todoService = lazy(
     () =>
@@ -99,11 +138,36 @@ export function createContainer(
         events: pubsub(),
       }),
   );
+  const versionPolicyService = lazy(
+    () =>
+      new VersionPolicyService({
+        policies: versionPolicyRepository(),
+        auditLogs: auditLogRepository(),
+        uow: unitOfWork(),
+        events: pubsub(),
+        cacheTtlMs: overrides.versionPolicyCacheTtlMs,
+      }),
+  );
+  const appConfigService = lazy(
+    () =>
+      new AppConfigService({
+        config: appConfigRepository(),
+        auditLogs: auditLogRepository(),
+        uow: unitOfWork(),
+        events: pubsub(),
+      }),
+  );
+  const pushTokenService = lazy(
+    () => new PushTokenService({ tokens: pushTokenRepository(), sender: pushSender() }),
+  );
 
   return {
     config,
     log,
     todoService,
+    versionPolicyService,
+    appConfigService,
+    pushTokenService,
     pubsub,
     async dbPing() {
       if (config.dbDriver === 'memory') return true;

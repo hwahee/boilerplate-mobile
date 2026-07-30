@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext"],
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "jsx": "react-jsx",
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "verbatimModuleSyntax": true,
+
+    "noEmit": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+
+    // "bun" is here ONLY for the bun:test import in *.test.ts files — app
+    // code must not use Bun APIs (it runs on Hermes).
+    "types": ["bun"],
+
+    // The app consumes the repo's shared contracts straight from source —
+    // the same modules the server imports (mirrored in metro.config.js).
+    // The root tsconfig deliberately does NOT include this project: the app
+    // compiles against React Native, not the DOM.
+    "paths": {
+      "@shared/*": ["../../src/shared/*"]
+    }
+  },
+  "include": ["index.ts", "app.config.ts", "src", "**/*.test.ts"],
+  "exclude": ["node_modules"]
+}

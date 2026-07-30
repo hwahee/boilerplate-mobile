@@ -23,6 +23,10 @@ export interface PubSub {
 export const CHANNELS = {
   /** Emitted after any todo mutation; payload: { action, todoId }. */
   todosChanged: 'todos.changed',
+  /** Emitted after any remote-config change; payload: { revision }. */
+  configChanged: 'config.changed',
+  /** Emitted after a version-policy upsert; payload: { platform }. */
+  versionPolicyChanged: 'version-policy.changed',
   /** Background job queue consumed by worker-role processes. */
   jobs: 'jobs',
 } as const;

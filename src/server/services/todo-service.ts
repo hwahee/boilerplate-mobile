@@ -2,13 +2,26 @@
  * Todo business logic — pure of HTTP concerns, unit-tested against the
  * in-memory repositories.
  */
-import type { CreateTodoInput, Todo, TodoListQuery, UpdateTodoInput } from '@shared/domain/todo';
+import type {
+  CreateTodoInput,
+  Todo,
+  TodoCursorListQuery,
+  TodoListQuery,
+  UpdateTodoInput,
+} from '@shared/domain/todo';
+import { buildCursorPage, decodeCursor, type CursorPage } from '@shared/api/cursor-pagination';
 import { buildPage, type Page } from '@shared/api/pagination';
 import { nowUtc } from '@shared/time';
+import { ValidationError } from '@shared/validation';
 
 import { NotFoundError } from '../lib/errors';
 import { CHANNELS, type PubSub } from '../pubsub';
-import type { AuditLogRepository, TodoRepository, UnitOfWork } from '../repositories/types';
+import type {
+  AuditLogRepository,
+  TodoListCursor,
+  TodoRepository,
+  UnitOfWork,
+} from '../repositories/types';
 
 export interface TodoChangedEvent {
   action: 'created' | 'updated' | 'deleted';
@@ -28,6 +41,30 @@ export class TodoService {
   async list(query: TodoListQuery): Promise<Page<Todo>> {
     const { items, totalItems } = await this.deps.todos.list(query);
     return buildPage(items, totalItems, query);
+  }
+
+  /** Keyset variant of {@link list} — the mobile app's infinite scroll. */
+  async listByCursor(query: TodoCursorListQuery): Promise<CursorPage<Todo>> {
+    let cursor: TodoListCursor | null = null;
+    if (query.cursor !== undefined) {
+      const payload = decodeCursor(query.cursor);
+      // A cursor is only valid for the exact ordering it was minted under —
+      // replaying it against different sort params would skip/repeat rows.
+      if (payload?.sortBy !== query.sortBy || payload.sortOrder !== query.sortOrder) {
+        throw new ValidationError([
+          { path: 'cursor', message: 'Malformed or mismatched cursor', code: 'invalid_cursor' },
+        ]);
+      }
+      cursor = { v: payload.v, id: payload.id };
+    }
+
+    const rows = await this.deps.todos.listByCursor(query, cursor);
+    return buildCursorPage(rows, query.limit, (last) => ({
+      v: query.sortBy === 'title' ? last.title : last.createdAt,
+      id: last.id,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
+    }));
   }
 
   async get(id: string): Promise<Todo> {

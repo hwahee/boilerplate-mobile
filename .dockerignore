@@ -8,3 +8,9 @@ coverage
 .github
 .husky
 *.md
+
+# The mobile app is never part of the server image — it ships through EAS.
+# Its package.json stays visible so the workspace install can read the
+# lockfile (only the root workspace is actually installed; see Dockerfile).
+apps/mobile/*
+!apps/mobile/package.json

@@ -1,21 +1,30 @@
-# Bun Fullstack Boilerplate
+# Bun Fullstack Boilerplate (+ 모바일 앱)
 
 React + Bun + Bun server 기반의 풀스택 모노레포 보일러플레이트입니다. 서버와 클라이언트가
 하나의 저장소에서 살고, 공통 코드는 `src/shared`에 둡니다.
 
+여기에 **Expo(React Native) 앱 레이어가 `apps/mobile`로 얹혀 있습니다.** 웹 브라우저용
+클라이언트와 모바일 앱이 같은 서버·같은 계약(`src/shared`)을 공유합니다. 원본 보일러플레이트의
+구조(`src/{client,server,shared}`)는 그대로 두고 그 위에 쌓는 방식이라, 업스트림 보일러플레이트
+변경사항을 계속 머지할 수 있습니다 — 자세한 규칙은 [모바일 앱 레이어](#모바일-앱-레이어-appsmobile)
+참고.
+
 ```
 src/
-├── shared/          # 서버·클라이언트 공통 (양쪽 모두에서 import 가능)
+├── shared/          # 서버·클라이언트·앱 공통 (세 곳 모두에서 import 가능)
 │   ├── validation/  # 스키마 검증 파사드 (현재 zod/mini, 교체 가능)
 │   ├── i18n/        # 로케일 협상 + 메시지 카탈로그 (en/ko)
 │   ├── time/        # UTC 전용 시간 유틸 (경계에서만 타임존 변환)
-│   ├── api/         # 페이지네이션 규약, 에러 엔벨로프, 버전 핸드셰이크
-│   └── domain/      # 도메인 타입 + 검증기 (서버·클라이언트 공용 계약)
+│   ├── semver/      # 앱 버전 비교 (버전 정책/업데이트 판단용)
+│   ├── api/         # 페이지네이션(페이지·커서) 규약, 에러 엔벨로프, 헤더/버전
+│   └── domain/      # 도메인 타입 + 검증기 (공용 계약)
+│                    #   todo / version-policy / app-config / push-token / platform
 ├── server/          # Bun server (API + 클라이언트 서빙 + 워커)
-│   ├── http/        # 라우트 공통 미들웨어 (CORS, 버전, 에러 매핑, locale)
-│   ├── routes/      # 엔드포인트 정의
+│   ├── http/        # 라우트 공통 미들웨어 (CORS, 버전, 426 게이트, 에러, locale)
+│   ├── routes/      # 엔드포인트 정의 (todos / version-policy / app-config / push / admin)
 │   ├── services/    # 비즈니스 로직 (트랜잭션 경계가 여기서 드러남)
 │   ├── repositories/# 영속성 계약 + postgres/in-memory 구현
+│   ├── push/        # 푸시 발송 파사드 (dry-run / expo 드라이버)
 │   ├── db/          # Bun 내장 SQL 드라이버, 마이그레이션 러너
 │   ├── pubsub/      # 인스턴스 간 통신 (memory/redis 드라이버)
 │   └── container.ts # 컴포지션 루트 — 프로세스당 싱글톤 관리
@@ -26,6 +35,17 @@ src/
     ├── theme/ i18n/ # 테마·로케일 컨텍스트
     ├── testing/     # data-testid 레지스트리 (docs/ui-automation.md 참고)
     └── pages/       # Todos(데모), Design System, NotFound
+
+apps/
+└── mobile/          # Expo(React Native) 앱 — iOS/Android
+    ├── src/api/     # ★ 앱의 API 카탈로그 (endpoints.ts) + TanStack Query 훅
+    ├── src/boot/    # 부트 상태 머신 (config·정책·광고 슬롯 게이트)
+    ├── src/version/ # 강제/선택 업데이트, OTA·스토어 파사드
+    ├── src/config/  # 원격 설정(캐시·폴링·WS 푸시), 환경 변수
+    ├── src/theme/   # 디자인 토큰 (라이트/다크 × 디자인 A/B)
+    ├── src/i18n/    # 앱 메시지 카탈로그 + 로케일 컨텍스트
+    ├── src/testing/ # testID 레지스트리 (docs/ui-automation-mobile.md 참고)
+    └── e2e/         # Maestro 플로우
 ```
 
 ## 시작하기
@@ -36,18 +56,23 @@ cp .env.example .env      # 환경 설정 — 비밀값은 절대 커밋 금지
 
 bun run db:setup          # docker로 Postgres 기동 + 마이그레이션 + 시드 (한 번에)
 bun run dev               # 개발 서버 (서버 watch + 클라이언트 HMR) → http://localhost:3000
+bun run dev:mobile        # Expo 개발 서버 (앱은 위 서버를 API로 사용)
 ```
 
 DB 없이 바로 실행하려면 `.env`에서 `DB_DRIVER=memory`로 바꾸면 됩니다(테스트도 이 드라이버를 사용).
 
-| 명령            | 설명                                                                  |
-| --------------- | --------------------------------------------------------------------- |
-| `bun run dev`   | 개발 모드. 서버 자동 재시작 + 클라이언트 HMR                          |
-| `bun test`      | 단위 + API 통합 테스트. 외부 환경 불필요 (in-memory DB), 한 번에 실행 |
-| `bun run check` | prettier + eslint + tsc + knip + test 전체 게이트 (pre-push와 동일)   |
-| `bun run build` | 프로덕션 빌드 → `dist/` (서버가 클라이언트를 포함하는 단일 산출물)    |
-| `bun run start` | 빌드 산출물 실행                                                      |
-| `bun run db:*`  | `db:up` / `db:migrate` / `db:seed` / `db:setup`                       |
+`bun install`은 워크스페이스 루트에서 한 번만 실행하면 앱 의존성까지 함께 설치됩니다.
+
+| 명령                       | 설명                                                                       |
+| -------------------------- | -------------------------------------------------------------------------- |
+| `bun run dev`              | 개발 모드. 서버 자동 재시작 + 클라이언트 HMR                               |
+| `bun run dev:mobile`       | Expo 개발 서버 (`APP_ENV=staging` 버전은 `dev:mobile:staging`)             |
+| `bun test`                 | 단위 + API 통합 + 앱 로직 테스트. 외부 환경 불필요 (in-memory DB)          |
+| `bun run check`            | prettier + eslint + tsc(웹·앱) + knip + test 전체 게이트 (pre-push와 동일) |
+| `bun run build`            | 프로덕션 빌드 → `dist/` (서버가 클라이언트를 포함하는 단일 산출물)         |
+| `bun run start`            | 빌드 산출물 실행                                                           |
+| `bun run db:*`             | `db:up` / `db:migrate` / `db:seed` / `db:setup`                            |
+| `bun run typecheck:mobile` | 앱만 타입체크 (앱은 React Native 타입 환경이라 tsconfig가 분리됨)          |
 
 ## 아키텍처 결정
 
@@ -69,11 +94,19 @@ DB 없이 바로 실행하려면 `.env`에서 `DB_DRIVER=memory`로 바꾸면 �
 `UtcIsoString` 브랜드 타입). 타임존 변환은 오직 경계에서만 — 클라이언트가
 `formatUtcInTimeZone`으로 표시할 때 수행합니다.
 
-### 목록 API 규약 (`@shared/api/pagination`)
+### 목록 API 규약 (`@shared/api/pagination`, `@shared/api/cursor-pagination`)
 
-모든 목록 엔드포인트는 `?page&pageSize&sortBy&sortOrder` + 엔드포인트별 평면 필터
-파라미터를 받고, `Page<T>` 엔벨로프(`items/page/pageSize/totalItems/totalPages/hasNextPage`)로
-응답합니다. 정렬 필드는 엔드포인트별 화이트리스트로만 허용됩니다.
+모든 목록 엔드포인트는 **두 가지 페이지네이션 모드**를 같은 구현으로 서빙합니다.
+
+- **페이지 모드(웹 기본)**: `?page&pageSize&sortBy&sortOrder` + 엔드포인트별 평면 필터.
+  `Page<T>` 엔벨로프(`items/page/pageSize/totalItems/totalPages/hasNextPage`)로 응답.
+- **커서 모드(앱 무한 스크롤)**: `?limit&cursor&sortBy&sortOrder` + 동일 필터.
+  `CursorPage<T>`(`items/nextCursor`)로 응답. keyset 방식이라 스크롤 중 행이 추가·삭제돼도
+  중복·누락이 없고, 깊은 페이지에서도 `count(*)`가 없어 비용이 일정합니다.
+
+`limit` 또는 `cursor`가 오면 커서 모드, 아니면 페이지 모드입니다. 커서 값은 클라이언트에
+**불투명(opaque)** 하며 정렬 파라미터가 박혀 있어 다른 정렬로 재사용하면 400입니다.
+정렬 필드는 엔드포인트별 화이트리스트로만 허용됩니다.
 
 ### 환경 설정
 
@@ -104,8 +137,9 @@ DB 없이 바로 실행하려면 `.env`에서 `DB_DRIVER=memory`로 바꾸면 �
   전용으로 나눠 띄울 수 있습니다. 잡은 pub/sub `jobs` 채널로 흐릅니다(`src/server/worker.ts`).
 - **싱글톤**: 컨테이너(`src/server/container.ts`)에서 resolve되는 모든 서비스는 프로세스당
   싱글톤(lazy + memoized)입니다. 새로 싱글톤이 필요하면 같은 방식으로 등록하면 됩니다.
-- **WebSocket**: `/ws`로 todo 변경 이벤트를 push합니다. 브리지가 pub/sub을 경유하므로
-  redis 드라이버에서는 다른 인스턴스에 붙은 소켓에도 팬아웃됩니다.
+- **WebSocket**: `/ws`로 todo 변경 이벤트와 원격 설정 변경(`{type:'config.changed'}`)을
+  push합니다. 브리지(`bridgePubSubToWebSocket`)가 pub/sub을 경유하므로 redis 드라이버에서는
+  다른 인스턴스에 붙은 소켓에도 팬아웃됩니다.
 
 ### Graceful shutdown & 롤링 배포 버전 스큐
 
@@ -119,6 +153,11 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
 보냅니다. 불일치 시 서버가 409 `VERSION_MISMATCH`를 반환하고 클라이언트는 1회
 새로고침하여 새 서버의 에셋을 받아옵니다. 서버 번들이 자신과 같은 빌드의 클라이언트를
 내장하므로(단일 산출물) 항상 정합성이 보장됩니다. (`src/shared/api/version.ts`)
+
+앱은 같은 `X-App-Version` 헤더에 **스토어 버전(semver)** 을 담아 보내되 `X-Platform`
+(`ios|android`)을 함께 보냅니다. 서버는 `X-Platform` 유무로 두 검사를 가릅니다 —
+헤더가 없으면 위의 배포 스큐 검사(409), 있으면 버전 정책 기반 업그레이드 게이트(426).
+브라우저 클라이언트는 `X-Platform`을 보내지 않으므로 서로 간섭하지 않습니다.
 
 ### 헬스체크
 
@@ -156,10 +195,72 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
   `aria-busy`, `aria-current`, skip link, 네이티브 컨트롤 우선)를 준수합니다.
   전체 규약은 **[docs/ui-automation.md](docs/ui-automation.md)** 한 문서에서 확인하세요.
 
+## 모바일 앱 레이어 (`apps/mobile`)
+
+### 이 레이어의 원칙 — 원본 보일러플레이트 위에 "쌓기"
+
+앱 지원을 위해 원본 구조를 재배치하지 않았습니다. `src/{client,server,shared}`는 그대로
+있고, 앱은 워크스페이스 하나(`apps/mobile`)로 추가되며, 서버·공통 코드에는 **기존 동작을
+바꾸지 않는 추가분만** 얹혀 있습니다. 덕분에 업스트림 보일러플레이트의 변경사항을 이
+저장소에 계속 머지할 수 있습니다.
+
+구체적인 규칙:
+
+- **파일 추가 > 파일 수정**: 새 스키마는 `migrations/0002_mobile.sql`(0001은 손대지 않음),
+  커서 페이지네이션은 `@shared/api/cursor-pagination`(기존 `pagination`은 유지),
+  앱 UI 문자열은 `apps/mobile/src/i18n/messages`(공통 카탈로그는 서버가 쓰는 에러 메시지만).
+- **기존 계약 불변**: 웹 클라이언트가 쓰는 `Page<T>` 응답, `X-App-Version` 스큐 검사,
+  기존 라우트/테스트는 그대로입니다. 앱용 동작은 앱만 보내는 신호(`X-Platform`, `limit`)로
+  분기합니다.
+- **앱은 `src/shared`를 소스 그대로 import**합니다(`@shared/*` 별칭 — tsconfig `paths`와
+  `metro.config.js`가 같은 매핑을 공유). 서버와 앱이 문자 그대로 같은 계약 파일을 씁니다.
+- 업스트림 머지 후에는 `bun run check` 한 번으로 웹·서버·앱 전체가 검증됩니다.
+
+### 앱이 제공하는 것
+
+- **부트 시퀀스**(`src/boot`): 명시적 상태 머신 — 원격 설정 로드 → 버전 정책 판정 →
+  (설정으로 켜지는) 광고 슬롯 게이트(min-show/skip/timeout) → 진입. 광고나 네트워크가
+  앱 진입을 **영구히 막지 못하도록** 타임아웃이 구조적으로 보장됩니다.
+- **업데이트 3경로**(`src/version`, `@shared/domain/version-policy`): `minSupportedVersion`
+  미만이면 전체 화면 강제 업데이트, 그 외에는 OTA/스토어 선택 업데이트 프롬프트("나중에"는
+  해당 버전에 한해 3일 억제). 판단 로직은 순수 함수라 단위 테스트로 고정되어 있습니다.
+  운영 절차는 **[docs/release-playbook.md](docs/release-playbook.md)**.
+- **원격 설정**(`GET /api/app-config`): `revision`이 곧 ETag → 폴링은 대부분 304이고,
+  변경은 WebSocket으로 즉시 push됩니다. 점검 모드(kill switch), 공지 배너, 기능 플래그,
+  부트 광고, 폴링 주기가 여기서 제어됩니다. 잘못된 값 하나가 앱을 벽돌로 만들지 않도록
+  키별로 독립 검증 후 기본값으로 폴백합니다.
+- **오프라인**: TanStack Query 캐시를 디스크에 영속화하고, 목록은 무한 스크롤 +
+  optimistic mutation. 네트워크 상태 배너를 제공합니다.
+- **푸시**: 기기 토큰 등록(`/api/push-tokens`) + 관리자 브로드캐스트
+  (`/api/admin/push/broadcast` → 워커가 발송). 발송은 `PUSH_DRIVER=dry-run`이 기본이라
+  **자격 증명 없이도 파이프라인 전체가 동작**합니다.
+- **관리자 API**: 버전 정책·원격 설정·푸시 브로드캐스트는 `ADMIN_TOKEN` 베어러 토큰으로만
+  접근 가능하며, 토큰이 비어 있으면 관리자 API는 완전히 비활성입니다.
+- **플랫폼 분기 정책**: 통합이 기본, 분기는 기록을 남기고 `*.ios.ts`/`*.android.ts`로 —
+  **[docs/platform-decisions.md](docs/platform-decisions.md)**.
+- **UI 자동화**: testID 레지스트리 + Maestro 플로우 —
+  **[docs/ui-automation-mobile.md](docs/ui-automation-mobile.md)**.
+
+### 앱 개발 시작
+
+```bash
+bun run dev               # API 서버 (앱이 붙을 대상)
+bun run dev:mobile        # Expo 개발 서버
+```
+
+기기/시뮬레이터에서 API 주소는 `apps/mobile/src/config/env.ts`가 플랫폼별로 결정하며
+(`EXPO_PUBLIC_API_URL`로 항상 덮어쓸 수 있음), 환경(dev/stg/prod)은 `APP_ENV` 하나로
+번들 ID까지 분리됩니다(`app.config.ts`). 네이티브 빌드는 CI에서 분리되어 있습니다
+(`.github/workflows/native-build.yml`, EAS).
+
+> 앱 번들은 **공개 산출물**입니다. 비밀값은 서버에만 두고, 앱이 비밀값을 필요로 하는 일은
+> 서버가 대신 수행합니다.
+
 ## CI / DX
 
 - **GitHub Actions** (`.github/workflows/ci.yml`): 모든 push마다
-  prettier → eslint → tsc → knip → test → build.
+  prettier → eslint → tsc(웹·앱) → knip → test → build. 네이티브 빌드는 느리고
+  서명 자격 증명이 필요하므로 `native-build.yml`(수동/태그 트리거)로 분리했습니다.
 - **husky + lint-staged**: pre-commit에 staged 파일 lint/format, pre-push에
   `bun run check` 전체 게이트.
 - **빌드**: Bun 번들러 단독 사용. `bun run build` 한 번으로 서버+클라이언트+마이그레이터가
@@ -179,7 +280,12 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
 
 ## 테스트 전략
 
-- **단위**: 비즈니스 로직(`TodoService`) — 트랜잭션 롤백, 이벤트 발행, 성공/실패 케이스.
-- **통합**: 실제 앱을 임시 포트에 띄워 HTTP로 검증 — CRUD, 페이지네이션/정렬/필터,
-  검증 실패(400)와 로컬라이즈된 메시지, 404, 버전 스큐(409), CORS 허용/거부, 헬스체크.
+- **단위**: 비즈니스 로직(`TodoService`, `VersionPolicyService`, `AppConfigService`,
+  `PushTokenService`) — 트랜잭션 롤백, 이벤트 발행, 캐시, 성공/실패 케이스. 공통 계약의
+  순수 함수(semver, 커서 인코딩, 업데이트 판정, 원격 설정 파싱)도 여기서 고정됩니다.
+- **통합**: 실제 앱을 임시 포트에 띄워 HTTP로 검증 — CRUD, 두 페이지네이션 모드,
+  검증 실패(400)와 로컬라이즈된 메시지, 404, 배포 스큐(409), 업그레이드 게이트(426),
+  원격 설정 ETag/304 + WS push, 관리자 인증(401), 푸시 브로드캐스트, CORS, 헬스체크.
+- **앱 로직**: API 클라이언트(헤더·에러 매핑), 부트 상태 머신, 원격 설정 스토어는
+  UI 없이 순수 로직으로 테스트됩니다. 화면 단위 플로우는 Maestro(E2E)가 담당합니다.
 - 전부 in-memory 드라이버로 돌므로 **`bun test` 하나로, 외부 환경 없이** 실행됩니다.

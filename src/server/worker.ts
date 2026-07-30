@@ -21,11 +21,41 @@ const jobValidator = toValidator(
 
 type JobHandler = (job: Record<string, unknown>, container: Container) => Promise<void>;
 
+const pushBroadcastJobValidator = toValidator(
+  s.looseObject({
+    title: s.string().check(s.minLength(1)),
+    body: s.string().check(s.minLength(1)),
+    data: s.optional(s.record(s.string(), s.unknown())),
+  }),
+);
+
 const JOB_HANDLERS: Record<string, JobHandler> = {
   /** Demo job published by TodoService.create. Replace with real work. */
   'todo.created': (job, container) => {
     container.log.info('worker processed job', { type: 'todo.created', todoId: job.todoId });
     return Promise.resolve();
+  },
+
+  /**
+   * Broadcast push to the mobile apps (config-change notices, marketing, …),
+   * enqueued by POST /api/admin/push/broadcast. Delivery runs through the
+   * PushSender facade — dry-run logging unless PUSH_DRIVER=expo.
+   */
+  'push.broadcast': async (job, container) => {
+    const parsed = pushBroadcastJobValidator.safeParse(job);
+    if (!parsed.ok) {
+      container.log.warn('push.broadcast job malformed', { job });
+      return;
+    }
+    const receipts = await container.pushTokenService().broadcast({
+      title: parsed.value.title,
+      body: parsed.value.body,
+      data: parsed.value.data,
+    });
+    container.log.info('push.broadcast finished', {
+      recipients: receipts.length,
+      failed: receipts.filter((receipt) => !receipt.ok).length,
+    });
   },
 };
 

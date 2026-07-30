@@ -64,6 +64,8 @@ export const en = {
 
   'error.validation': 'The request contains invalid data.',
   'error.notFound': 'The requested resource was not found.',
+  'error.unauthorized': 'You are not allowed to perform this action.',
+  'error.upgradeRequired': 'This app version is no longer supported. Please update the app.',
   'error.internal': 'An unexpected error occurred. Please try again.',
   'error.versionMismatch':
     'A new version of the application has been deployed. The page will reload.',

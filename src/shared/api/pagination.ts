@@ -9,6 +9,9 @@
  * and MUST respond with the `Page<T>` envelope below. Endpoint-specific
  * validators (see e.g. `@shared/domain/todo`) whitelist their own sortable
  * fields and filter params on top of this base.
+ *
+ * The mobile app pages the same endpoints by cursor instead (infinite
+ * scroll) — see `@shared/api/cursor-pagination`.
  */
 
 export const PAGINATION = {
@@ -46,6 +49,9 @@ export function buildPage<T>(
   };
 }
 
+/** Numeric params of both pagination modes (page/offset and cursor). */
+const NUMERIC_PARAMS = new Set(['page', 'pageSize', 'limit']);
+
 /**
  * Converts `URLSearchParams` into a plain object suitable for validation,
  * coercing the numeric pagination params. All other values stay strings and
@@ -54,7 +60,7 @@ export function buildPage<T>(
 export function searchParamsToObject(params: URLSearchParams): Record<string, unknown> {
   const raw: Record<string, unknown> = {};
   for (const [key, value] of params) {
-    if (key === 'page' || key === 'pageSize') {
+    if (NUMERIC_PARAMS.has(key)) {
       raw[key] = value === '' ? undefined : Number(value);
     } else {
       raw[key] = value;

@@ -1,9 +1,15 @@
 /**
- * Todo domain — the shared contract between server and client.
+ * Todo domain — the shared contract between server, browser client and
+ * mobile app, and the demo domain that exercises every repo convention
+ * end-to-end (pagination, optimistic mutations, offline cache, WebSocket
+ * invalidation).
  *
- * Contains the entity type, input validators and the list-query validator
- * following the repo-wide pagination convention (@shared/api/pagination).
+ * Contains the entity type, input validators and the list-query validators —
+ * one per pagination mode: numbered pages for the browser
+ * (@shared/api/pagination) and cursors for the app's infinite scroll
+ * (@shared/api/cursor-pagination).
  */
+import { CURSOR_PAGINATION } from '../api/cursor-pagination';
 import { PAGINATION, SORT_ORDERS } from '../api/pagination';
 import type { UtcIsoString } from '../time';
 import { s, toValidator, type Infer } from '../validation';
@@ -72,3 +78,27 @@ export const listTodosQueryValidator = toValidator(
   }),
 );
 export type TodoListQuery = Infer<typeof listTodosQueryValidator>;
+
+/**
+ * Query of `GET /api/todos` in CURSOR mode — same filters, keyset paging.
+ * Selected by sending `limit` and/or `cursor` (see
+ * `@shared/api/cursor-pagination`); this is what the mobile app's infinite
+ * scroll uses.
+ */
+export const listTodosCursorQueryValidator = toValidator(
+  s.object({
+    limit: s._default(
+      s.int().check(s.gte(1), s.lte(CURSOR_PAGINATION.maxLimit)),
+      CURSOR_PAGINATION.defaultLimit,
+    ),
+    /** Opaque `nextCursor` from the previous page; absent on the first page. */
+    cursor: s.optional(s.string().check(s.minLength(1))),
+    sortBy: s._default(s.enum(TODO_SORT_FIELDS), 'createdAt'),
+    sortOrder: s._default(s.enum(SORT_ORDERS), 'desc'),
+    /** Filter: exact status match. */
+    status: s.optional(s.enum(TODO_STATUSES)),
+    /** Filter: case-insensitive substring match on the title. */
+    q: s.optional(s.string().check(s.maxLength(200))),
+  }),
+);
+export type TodoCursorListQuery = Infer<typeof listTodosCursorQueryValidator>;

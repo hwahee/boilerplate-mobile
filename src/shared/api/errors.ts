@@ -7,17 +7,38 @@
  *
  * `message` is localized (Accept-Language / ?lang=), `code` is stable and
  * machine-readable — clients must branch on `code`, never on `message`.
+ *
+ * Version-skew rule: codes may be ADDED over time but never removed or
+ * repurposed — old app builds in the field switch on them.
  */
 
-export type ApiErrorCode = 'VALIDATION_ERROR' | 'NOT_FOUND' | 'VERSION_MISMATCH' | 'INTERNAL_ERROR';
+export type ApiErrorCode =
+  | 'VALIDATION_ERROR'
+  | 'NOT_FOUND'
+  /** Missing/invalid credentials on a protected endpoint — HTTP 401. */
+  | 'UNAUTHORIZED'
+  /** Browser build ≠ server build during a rolling deploy — HTTP 409. */
+  | 'VERSION_MISMATCH'
+  /** The calling app version is below `minSupportedVersion` — HTTP 426. */
+  | 'UPGRADE_REQUIRED'
+  | 'INTERNAL_ERROR';
 
 export interface ApiErrorBody {
   error: {
     code: ApiErrorCode;
     message: string;
-    /** Optional structured detail, e.g. validation issues. */
+    /** Optional structured detail, e.g. validation issues or upgrade info. */
     details?: unknown;
   };
+}
+
+/** Payload of `details` on an `UPGRADE_REQUIRED` (426) response. */
+export interface UpgradeRequiredDetails {
+  platform: string;
+  clientVersion: string;
+  minSupportedVersion: string;
+  /** Where the update lives — App Store / Play Store page. */
+  storeUrl: string;
 }
 
 export function isApiErrorBody(value: unknown): value is ApiErrorBody {

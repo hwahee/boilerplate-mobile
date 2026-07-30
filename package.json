@@ -2,6 +2,9 @@
   "name": "bun-fullstack-boilerplate",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
     "dev": "bun --watch src/server/index.ts",
     "build": "bun run scripts/build.ts",
@@ -13,7 +16,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "knip": "knip",
-    "check": "bun run format:check && bun run lint && bun run typecheck && bun run knip && bun test",
+    "check": "bun run format:check && bun run lint && bun run typecheck && bun run typecheck:mobile && bun run knip && bun test",
+    "dev:mobile": "bun run --cwd apps/mobile start",
+    "dev:mobile:staging": "bun run --cwd apps/mobile start:staging",
+    "typecheck:mobile": "bun run --cwd apps/mobile typecheck",
     "db:up": "docker compose up -d db",
     "db:migrate": "bun run scripts/migrate.ts",
     "db:seed": "bun run scripts/seed.ts",

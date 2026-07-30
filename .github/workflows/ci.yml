@@ -1,6 +1,8 @@
 name: CI
 
 # Runs on every push (and PRs from forks) — see the DX section of the README.
+# JS-level verification only. Native app builds are deliberately NOT here:
+# they are slow and need signing credentials (see native-build.yml).
 on:
   push:
   pull_request:
@@ -27,10 +29,13 @@ jobs:
       - name: TypeScript (strict typecheck)
         run: bun run typecheck
 
+      - name: TypeScript (mobile app)
+        run: bun run typecheck:mobile
+
       - name: Knip (unused files/exports/dependencies)
         run: bun run knip
 
-      - name: Tests (unit + API integration, in-memory DB)
+      - name: Tests (unit + API integration + app logic, in-memory DB)
         run: bun test
 
       - name: Production build

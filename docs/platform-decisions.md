@@ -28,6 +28,7 @@
 | 1   | 2026-07 | 스토어 업데이트 이동 | `store-update.ios.ts` / `store-update.android.ts` 분리 | 적용 |
 | 2   | 2026-07 | 로컬 API 접속 주소   | 분리하지 않음 — `env.ts` 안 `Platform.select` 국소화   | 적용 |
 | 3   | 2026-07 | 지원 기기 범위       | 웹/태블릿/폴더블 코드 전면 배제                        | 적용 |
+| 4   | 2026-07 | 음성 어시스턴트      | 진입점만 분리, 실행은 카탈로그 계약으로 통합           | 적용 |
 
 ### 1. 스토어 업데이트 이동 (`apps/mobile/src/version/store-update.*`)
 
@@ -52,3 +53,19 @@
 - **결정**: `app.config.ts`에 `platforms: ['ios','android']`, `supportsTablet: false`.
   웹 대응(react-native-web), 태블릿 레이아웃, 폴더블 힌지 대응 코드는 저장소에
   존재하지 않는다. 필요해지는 시점에 이 문서에 결정을 추가하고 시작한다.
+
+### 4. 음성 어시스턴트 (`src/shared/voice/`, `apps/mobile/src/voice/`, `capsule/`)
+
+- **문제**: Siri는 앱 안의 Swift `AppIntent`, Google Assistant는 앱 안의
+  `res/xml/shortcuts`, Bixby는 **삼성 클라우드에서 도는 별도 프로젝트**(Capsule)다.
+  세 진입점의 API는 서로 공통점이 없다. 그렇다고 기능 로직까지 세 벌로 두면
+  유지보수가 무너진다.
+- **결정**: 원칙 1(기본은 통합)과 2(애매하면 과감히 분리)를 **한 축씩** 적용했다.
+  - **분리**: OS가 최초로 닿는 네이티브 스텁. 필연적이므로 그대로 둔다.
+  - **통합**: 그 위 전부를 `src/shared/voice/catalog.ts` 하나로 모으고,
+    세 플랫폼의 네이티브 산출물을 거기서 **생성**한다(`bun run voice:generate`).
+    실행 로직은 `deeplink`면 RN 핸들러 한 곳, `api`면 서버 라우트 한 곳.
+- **비용**: 생성 단계가 하나 늘었다(`voice:check`가 `check`에 포함). 그 대신
+  발화 문구·슬롯·인텐트 id가 세 플랫폼에서 어긋날 수 없다 — 손으로 관리했다면
+  "한쪽 폰에서만 되는 발화"라는 형태로 조용히 깨졌을 것이다.
+- **근거와 전체 배경**: [voice-assistant.md](./voice-assistant.md)

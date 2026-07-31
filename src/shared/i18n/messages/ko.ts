@@ -58,6 +58,11 @@ export const ko: Record<MessageKey, string> = {
   'notFound.title': '페이지를 찾을 수 없습니다',
   'notFound.goHome': '홈으로 이동',
 
+  'voice.todo.created': '할 일에 {title} 추가했어요.',
+  'voice.todo.summary.empty': '남은 할 일이 없어요.',
+  'voice.todo.summary.one': '남은 할 일이 하나 있어요.',
+  'voice.todo.summary.many': '남은 할 일이 {count}개 있어요.',
+
   'error.validation': '요청에 잘못된 데이터가 포함되어 있습니다.',
   'error.notFound': '요청한 리소스를 찾을 수 없습니다.',
   'error.unauthorized': '이 작업을 수행할 권한이 없습니다.',

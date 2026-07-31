@@ -1,0 +1,29 @@
+/**
+ * Bixby Capsule root.
+ *
+ * This directory is NOT part of the React Native build. Bixby capsules are
+ * separate projects that run on Samsung's cloud, are opened in Bixby Developer
+ * Studio, and are deployed to Samsung's servers rather than to the app store.
+ * That is the one hard split in the voice architecture — see
+ * docs/voice-assistant.md.
+ *
+ * What IS shared: the actions below correspond one-for-one to the `api`
+ * intents in src/shared/voice/catalog.ts, and the training utterances under
+ * resources/<locale>/training are generated from the same catalog
+ * (`bun run voice:generate`). The capsule calls the very same
+ * POST /api/voice/<id> endpoint the Siri App Intent calls.
+ *
+ * Only `api` intents appear here. A capsule that merely deep-links into the
+ * app can never learn what happened, so it cannot answer the user — and a
+ * spoken answer is the entire reason to use Bixby while driving.
+ */
+capsule {
+  id (example.boilerplate)
+  version (0.1.0)
+  format (3)
+
+  targets {
+    target (bixby-mobile-en-US)
+    target (bixby-mobile-ko-KR)
+  }
+}

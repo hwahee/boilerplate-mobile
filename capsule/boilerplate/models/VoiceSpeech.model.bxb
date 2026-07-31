@@ -1,0 +1,11 @@
+/**
+ * The sentence Bixby reads back — the `speech` field of the API response.
+ *
+ * Modelling the answer as a single text concept (rather than a rich result
+ * type per action) is deliberate: the server already localizes and phrases the
+ * answer for every assistant, so the capsule stays a transport. One result
+ * view (../views/VoiceSpeech.view.bxb) then serves every action.
+ */
+text (VoiceSpeech) {
+  description (Localized sentence the assistant speaks back to the user.)
+}

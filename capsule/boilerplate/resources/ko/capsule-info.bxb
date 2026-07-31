@@ -1,0 +1,5 @@
+capsule-info {
+  display-name (Boiler)
+  description (음성으로 할 일을 추가하고 확인합니다.)
+  search-keywords { keyword (할일) keyword (메모) }
+}

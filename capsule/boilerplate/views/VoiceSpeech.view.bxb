@@ -1,0 +1,24 @@
+/**
+ * One result view for every action, because every action returns the same
+ * concept. `speech` is what matters at the wheel; the card is what the user
+ * sees afterwards if they glance down.
+ */
+result-view {
+  match: VoiceSpeech (this)
+
+  message {
+    template ("#{value(this)}")
+  }
+
+  render {
+    layout {
+      section {
+        content {
+          paragraph {
+            value ("#{value(this)}")
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+/* GENERATED FILE — edit src/shared/voice/catalog.ts and run `bun run voice:generate`. */
+
+/* todo.create */
+"Add a todo in ${applicationName}" = "${applicationName}에 할 일 추가";
+"Remember something in ${applicationName}" = "${applicationName}에 메모해줘";
+
+/* todo.summary */
+"What's left in ${applicationName}" = "${applicationName}에 남은 할 일";
+"How many todos in ${applicationName}" = "${applicationName} 할 일 몇 개야";
+
+/* todos.search */
+"Search ${applicationName}" = "${applicationName}에서 검색";
+"Find something in ${applicationName}" = "${applicationName}에서 찾아줘";
+
+/* todos.open */
+"Open ${applicationName}" = "${applicationName} 열어줘";
+"Show my todos in ${applicationName}" = "${applicationName} 할 일 보여줘";

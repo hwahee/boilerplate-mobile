@@ -21,6 +21,7 @@ import { startWorker } from '../worker';
 
 const ALLOWED_ORIGIN = 'https://allowed.example.com';
 const ADMIN_TOKEN = 'integration-test-admin-token';
+const VOICE_TOKEN = 'integration-test-voice-token';
 
 let container: Container;
 let state: AppState;
@@ -45,6 +46,7 @@ beforeAll(async () => {
     PUBSUB_DRIVER: 'memory',
     CORS_ORIGINS: ALLOWED_ORIGIN,
     ADMIN_TOKEN,
+    VOICE_TOKEN,
   });
   container = createContainer(config, {
     log: silentLogger,
@@ -100,6 +102,105 @@ async function api<T = unknown>(
 }
 
 const asAdmin = { authorization: `Bearer ${ADMIN_TOKEN}` };
+const asVoice = { authorization: `Bearer ${VOICE_TOKEN}` };
+
+interface VoiceBody {
+  speech: string;
+  data: Record<string, unknown>;
+}
+
+describe('voice intents (/api/voice/*)', () => {
+  test('executes an api intent and answers with a spoken sentence', async () => {
+    const { status, body } = await api<VoiceBody>('POST', '/api/voice/todo.create', {
+      headers: asVoice,
+      body: { title: 'Call the garage' },
+    });
+    expect(status).toBe(200);
+    expect(body.speech).toContain('Call the garage');
+    expect(body.data.id).toBeString();
+
+    // The spoken action really landed in the domain, not in a side channel.
+    const list = await api<{ items: Todo[] }>('GET', '/api/todos?pageSize=100');
+    expect(list.body.items.map((todo) => todo.title)).toContain('Call the garage');
+  });
+
+  test('localizes the spoken answer from Accept-Language', async () => {
+    const { body } = await api<VoiceBody>('POST', '/api/voice/todo.summary', {
+      headers: { ...asVoice, 'accept-language': 'ko' },
+    });
+    expect(body.speech).toBe('남은 할 일이 없어요.');
+  });
+
+  test('counts open todos for the summary intent', async () => {
+    await api('POST', '/api/todos', { body: { title: 'one' } });
+    await api('POST', '/api/todos', { body: { title: 'two' } });
+    const { body } = await api<VoiceBody>('POST', '/api/voice/todo.summary', { headers: asVoice });
+    expect(body.data.count).toBe(2);
+    expect(body.speech).toContain('2');
+  });
+
+  test('rejects a call without a voice token', async () => {
+    const { status } = await api('POST', '/api/voice/todo.summary', {});
+    expect(status).toBe(401);
+  });
+
+  test('rejects a wrong voice token', async () => {
+    const { status } = await api('POST', '/api/voice/todo.summary', {
+      headers: { authorization: 'Bearer nope' },
+    });
+    expect(status).toBe(401);
+  });
+
+  test('404s for deeplink intents — they have no server representation', async () => {
+    const { status } = await api('POST', '/api/voice/todos.search', {
+      headers: asVoice,
+      body: { query: 'milk' },
+    });
+    expect(status).toBe(404);
+  });
+
+  test('404s for an id that is not in the catalog', async () => {
+    const { status } = await api('POST', '/api/voice/nope.nope', { headers: asVoice });
+    expect(status).toBe(404);
+  });
+
+  test('rejects a blank dictation with a validation error', async () => {
+    const { status, body } = await api<{ error: { code: string } }>(
+      'POST',
+      '/api/voice/todo.create',
+      { headers: asVoice, body: { title: '   ' } },
+    );
+    expect(status).toBe(400);
+    expect(body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  test('is exempt from the 426 upgrade gate (assistants have no app version)', async () => {
+    await api('PUT', '/api/admin/version-policy/ios', {
+      headers: asAdmin,
+      body: {
+        minSupportedVersion: '9.0.0',
+        latestVersion: '9.0.0',
+        updateMode: 'force',
+        storeUrl: 'https://apps.apple.com/app/id0',
+      },
+    });
+    const { status } = await api<VoiceBody>('POST', '/api/voice/todo.summary', {
+      headers: { ...asVoice, [PLATFORM_HEADER]: 'ios', [APP_VERSION_HEADER]: '1.0.0' },
+    });
+    expect(status).toBe(200);
+
+    // Restore: other tests rely on there being no forcing policy.
+    await api('PUT', '/api/admin/version-policy/ios', {
+      headers: asAdmin,
+      body: {
+        minSupportedVersion: '1.0.0',
+        latestVersion: '1.0.0',
+        updateMode: 'none',
+        storeUrl: 'https://apps.apple.com/app/id0',
+      },
+    });
+  });
+});
 
 describe('health endpoints', () => {
   test('liveness reports ok + version', async () => {

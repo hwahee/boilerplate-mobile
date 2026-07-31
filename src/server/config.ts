@@ -25,6 +25,13 @@ const configValidator = toValidator(
     pushDriver: s._default(s.enum(['dry-run', 'expo']), 'dry-run'),
     /** Bearer token for /api/admin/*; undefined disables the admin API entirely. */
     adminToken: s.optional(s.string().check(s.minLength(16))),
+    /**
+     * Shared secret accepted by /api/voice/* (Siri App Intents, Bixby Capsule).
+     * Undefined disables the voice API entirely — same stance as adminToken.
+     * This is the boilerplate's stand-in for per-user voice tokens; see
+     * src/server/services/voice-token-service.ts.
+     */
+    voiceToken: s.optional(s.string().check(s.minLength(16))),
     shutdownDrainMs: s._default(s.int().check(s.gte(0), s.lte(60_000)), 3000),
   }),
 );
@@ -56,6 +63,7 @@ export function loadServerConfig(
     serverRole: env.SERVER_ROLE,
     pushDriver: env.PUSH_DRIVER,
     adminToken: stringOrUndefined(env.ADMIN_TOKEN),
+    voiceToken: stringOrUndefined(env.VOICE_TOKEN),
     shutdownDrainMs: numberOrUndefined(env.SHUTDOWN_DRAIN_MS),
   });
 

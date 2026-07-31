@@ -27,7 +27,10 @@ import { useBootSequence } from './boot/useBootSequence';
 import { useAppForeground } from './lifecycle/useAppForeground';
 import { LocaleProvider } from './i18n/LocaleProvider';
 import { linking } from './navigation/linking';
+import { navigationRef } from './navigation/ref';
 import { RootNavigator } from './navigation/RootNavigator';
+import { flushPendingVoiceUrl } from './voice/handlers';
+import { useVoiceLinks } from './voice/useVoiceLinks';
 import { createAppQueryClient, PERSIST_MAX_AGE_MS, queryPersister } from './offline/persist';
 import { MaintenanceScreen } from './screens/MaintenanceScreen';
 import { ThemeProvider, useTheme } from './theme/ThemeProvider';
@@ -49,6 +52,12 @@ function AppShell({ forced426 }: { forced426: ForcedUpdate | null }) {
   const configState = useMemo(() => ({ config, revision, source }), [config, revision, source]);
 
   const boot = useBootSequence({ api, configState, refreshConfig: refresh });
+
+  // Registered here rather than beside the NavigationContainer so the launch
+  // URL is captured even while a gate (boot/maintenance/force-update) is on
+  // screen; commands queue until the navigator is ready.
+  useVoiceLinks();
+
   const [forcedByPolicy, setForcedByPolicy] = useState<ForcedUpdate | null>(null);
   const [promptDismissed, setPromptDismissed] = useState(false);
 
@@ -109,7 +118,14 @@ function AppShell({ forced426 }: { forced426: ForcedUpdate | null }) {
   // ── 4. The app ─────────────────────────────────────────────────────────────
   return (
     <>
-      <NavigationContainer theme={navTheme} linking={linking}>
+      <NavigationContainer
+        ref={navigationRef}
+        theme={navTheme}
+        linking={linking}
+        // A launch-time voice command arrives before the navigator exists;
+        // this replays it (src/voice/handlers.ts).
+        onReady={flushPendingVoiceUrl}
+      >
         <RootNavigator />
       </NavigationContainer>
       {boot.state.optionalUpdate && !promptDismissed ? (

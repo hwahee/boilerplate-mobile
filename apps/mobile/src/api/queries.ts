@@ -25,12 +25,14 @@ import { useApi } from './ApiProvider';
 
 export interface TodoFilter {
   status?: TodoStatus;
+  /** Case-insensitive title substring; set by the `todos.search` voice intent. */
+  q?: string;
 }
 
 /** @public single source of query keys — import from here, never inline */
 export const queryKeys = {
   todosRoot: ['todos'] as const,
-  todos: (filter: TodoFilter) => ['todos', filter.status ?? 'all'] as const,
+  todos: (filter: TodoFilter) => ['todos', filter.status ?? 'all', filter.q ?? ''] as const,
 };
 
 type TodoPages = InfiniteData<CursorPage<Todo>, string | null>;
@@ -47,6 +49,7 @@ export function useTodosInfinite(filter: TodoFilter) {
         limit: PAGE_SIZE,
         cursor: pageParam ?? undefined,
         status: filter.status,
+        q: filter.q,
       }),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,

@@ -1,0 +1,14 @@
+/**
+ * `todo.summary` — POST /api/voice/todo.summary
+ *
+ * No slots: the only good "how many are left?" interaction while driving is
+ * one turn, question in, sentence out.
+ */
+action (TodoSummary) {
+  type (Search)
+  description (Reads back how many todos are still open.)
+
+  collect {}
+
+  output (VoiceSpeech)
+}

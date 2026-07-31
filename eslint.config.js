@@ -30,6 +30,10 @@ export default tseslint.config(
       'apps/mobile/.expo/**',
       'apps/mobile/android/**',
       'apps/mobile/ios/**',
+      // Bixby capsule: a separate project with its own runtime (Bixby's JS
+      // sandbox, `$vivContext`, its own `require` resolution). It is built by
+      // Bixby Developer Studio, not by this repo's toolchain.
+      'capsule/**',
       'apps/mobile/expo-env.d.ts',
     ],
   },

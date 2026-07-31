@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  GENERATED FILE — edit src/shared/voice/catalog.ts and run `bun run voice:generate`.
+
+  Google Assistant App Actions. Unlike Bixby this lives INSIDE the Android app,
+  so it ships with the binary exactly like Siri's App Intents do.
+
+  Contains the catalog's `deeplink` intents only — see the note in
+  scripts/generate-voice-artifacts.ts for why `api` intents cannot appear
+  here, and docs/voice-assistant.md for what that means on a Galaxy.
+
+  __VOICE_LINK_ORIGIN__ is substituted at prebuild by
+  apps/mobile/plugins/withVoiceAssistants.ts, from the verified App Link host
+  in app.config.ts. Every URL here must be covered by an autoVerify
+  intent-filter or Assistant will refuse to hand the request over.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Search todos (not hands-free) -->
+    <capability android:name="custom.actions.intent.TODOS_SEARCH">
+        <app-link android:identifier="todos.search">
+            <url-template android:value="__VOICE_LINK_ORIGIN__/voice/todos.search{?query}" />
+            <parameter
+                android:name="query"
+                android:key="query"
+                android:required="true" />
+        </app-link>
+    </capability>
+
+    <!-- Open todos (not hands-free) -->
+    <capability android:name="custom.actions.intent.TODOS_OPEN">
+        <app-link android:identifier="todos.open">
+            <url-template android:value="__VOICE_LINK_ORIGIN__/voice/todos.open" />
+        </app-link>
+    </capability>
+
+</shortcuts>

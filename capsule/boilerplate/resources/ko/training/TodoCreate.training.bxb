@@ -1,0 +1,17 @@
+// GENERATED FILE — edit src/shared/voice/catalog.ts and run `bun run voice:generate`.
+//
+// Open capsule/ in Bixby Developer Studio to compile and train. Slot values
+// are added there against the concepts in models/ — an utterance file cannot
+// declare them on its own.
+train {
+  utterance ("Boiler에 할 일 추가") {
+    intent {
+      goal: TodoCreate
+    }
+  }
+  utterance ("Boiler에 메모해줘") {
+    intent {
+      goal: TodoCreate
+    }
+  }
+}

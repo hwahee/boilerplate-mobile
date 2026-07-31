@@ -7,11 +7,19 @@
  *   - UTC→device-timezone conversion at the display boundary
  *
  * Minimal state: the ONLY local state is the composer input and the status
- * filter; everything else derives from server cache and remote config.
+ * filter; everything else derives from server cache, remote config, and —
+ * for the search term — the route params (`?q=`, set by the `todos.search`
+ * voice intent; see src/voice).
  */
 import { useState } from 'react';
 import { FlatList, Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import {
+  useNavigation,
+  useRoute,
+  type NavigationProp,
+  type RouteProp,
+} from '@react-navigation/native';
 
 import type { Todo, TodoStatus } from '@shared/domain/todo';
 import { formatUtcInTimeZone } from '@shared/time';
@@ -29,6 +37,7 @@ import { TextField } from '../components/TextField';
 import { useConfig } from '../config/ConfigProvider';
 import { useLocale } from '../i18n/LocaleProvider';
 import { OfflineBanner } from '../offline/OfflineBanner';
+import type { MainTabParamList } from '../navigation/types';
 import { useTheme } from '../theme/ThemeProvider';
 import { TESTID } from '../testing/testids';
 
@@ -38,11 +47,20 @@ export function TodosScreen() {
   const { tokens } = useTheme();
   const { t, locale } = useLocale();
   const { config } = useConfig();
+  const navigation = useNavigation<NavigationProp<MainTabParamList, 'TodosTab'>>();
+  const route = useRoute<RouteProp<MainTabParamList, 'TodosTab'>>();
 
   const [title, setTitle] = useState('');
   const [filter, setFilter] = useState<StatusFilter>('all');
 
-  const query = useTodosInfinite({ status: filter === 'all' ? undefined : filter });
+  // Route param, not local state: a voice search re-navigates with a new `q`,
+  // and that is what re-renders the list.
+  const search = route.params?.q?.trim() ?? '';
+
+  const query = useTodosInfinite({
+    status: filter === 'all' ? undefined : filter,
+    q: search || undefined,
+  });
   const createTodo = useCreateTodo();
   const updateTodo = useUpdateTodo();
   const deleteTodo = useDeleteTodo();
@@ -214,6 +232,46 @@ export function TodosScreen() {
             );
           })}
         </View>
+
+        {/* A voice search arrives with no on-screen trace of what was heard.
+            Showing the term (and a way out) is what makes `todos.search`
+            legible when the driver finally looks down. */}
+        {search ? (
+          <View
+            testID={TESTID.todos.searchBanner}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: tokens.spacing.sm,
+              paddingVertical: tokens.spacing.xs,
+              paddingHorizontal: tokens.spacing.md,
+              borderRadius: tokens.radius.full,
+              backgroundColor: tokens.colors.surface,
+              borderWidth: tokens.borderWidth,
+              borderColor: tokens.colors.border,
+            }}
+          >
+            <Ionicons name="search" size={tokens.type.body} color={tokens.colors.textMuted} />
+            <AppText variant="caption" style={{ flex: 1 }} numberOfLines={1}>
+              {t('todos.searchResults', { query: search })}
+            </AppText>
+            <Pressable
+              testID={TESTID.todos.searchClear}
+              onPress={() => navigation.setParams({ q: undefined })}
+              accessibilityRole="button"
+              accessibilityLabel={t('todos.searchClear')}
+              hitSlop={tokens.spacing.sm}
+              style={{
+                minWidth: tokens.minTouchTarget,
+                minHeight: tokens.minTouchTarget,
+                alignItems: 'flex-end',
+                justifyContent: 'center',
+              }}
+            >
+              <Ionicons name="close" size={tokens.type.body} color={tokens.colors.textMuted} />
+            </Pressable>
+          </View>
+        ) : null}
       </View>
 
       {query.isPending ? (
@@ -239,7 +297,12 @@ export function TodosScreen() {
           onEndReached={() => {
             if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
           }}
-          ListEmptyComponent={<EmptyState testID={TESTID.todos.empty} message={t('todos.empty')} />}
+          ListEmptyComponent={
+            <EmptyState
+              testID={TESTID.todos.empty}
+              message={search ? t('todos.searchEmpty', { query: search }) : t('todos.empty')}
+            />
+          }
           ListFooterComponent={
             query.isFetchingNextPage ? (
               <Spinner

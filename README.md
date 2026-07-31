@@ -45,7 +45,12 @@ apps/
     ├── src/theme/   # 디자인 토큰 (라이트/다크 × 디자인 A/B)
     ├── src/i18n/    # 앱 메시지 카탈로그 + 로케일 컨텍스트
     ├── src/testing/ # testID 레지스트리 (docs/ui-automation-mobile.md 참고)
+    ├── src/voice/   # ★ 음성 명령이 실제로 실행되는 곳 (Siri/Bixby/Assistant 공통)
+    ├── native/      # 주입용 Swift / Android XML (대부분 카탈로그에서 생성)
+    ├── plugins/     # Expo config plugin (prebuild 시 네이티브 주입)
     └── e2e/         # Maestro 플로우
+
+capsule/             # Bixby Capsule — 삼성 클라우드에서 도는 별도 프로젝트
 ```
 
 ## 시작하기
@@ -240,6 +245,13 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
   **[docs/platform-decisions.md](docs/platform-decisions.md)**.
 - **UI 자동화**: testID 레지스트리 + Maestro 플로우 —
   **[docs/ui-automation-mobile.md](docs/ui-automation-mobile.md)**.
+- **음성 어시스턴트**(`src/shared/voice`, `apps/mobile/src/voice`, `capsule/`):
+  Siri·Bixby·Google Assistant 세 진입점은 플랫폼 API가 서로 무관해 분리가 불가피하지만,
+  **어떤 동작이 있고 사용자가 뭐라고 말하는지는 카탈로그 하나**로 모으고 네이티브
+  산출물을 거기서 생성합니다(`bun run voice:generate`, `voice:check`가 `check`에 포함).
+  실행은 두 모드 중 하나 — 앱을 여는 `deeplink`(RN 핸들러 한 곳)와, 앱을 열지 않고
+  서버가 답을 말해주는 `api`(`POST /api/voice/:id`). 운전 중 핸즈프리가 설계 기준입니다.
+  **[docs/voice-assistant.md](docs/voice-assistant.md)**.
 
 ### 앱 개발 시작
 

@@ -31,6 +31,6 @@
       "@shared/*": ["../../src/shared/*"]
     }
   },
-  "include": ["index.ts", "app.config.ts", "src", "**/*.test.ts"],
+  "include": ["index.ts", "app.config.ts", "plugins", "src", "**/*.test.ts"],
   "exclude": ["node_modules"]
 }

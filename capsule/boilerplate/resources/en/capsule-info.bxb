@@ -1,0 +1,5 @@
+capsule-info {
+  display-name (Boiler)
+  description (Add and review your todos by voice.)
+  search-keywords { keyword (todo) keyword (reminder) }
+}

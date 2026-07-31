@@ -59,6 +59,9 @@ export const en = {
   'todos.status.done': 'Done',
   'todos.toggleStatus': 'Mark "{title}" as {status}',
   'todos.deleteTodo': 'Delete "{title}"',
+  'todos.searchResults': 'Results for “{query}”',
+  'todos.searchClear': 'Clear search',
+  'todos.searchEmpty': 'Nothing matches “{query}”.',
   'todos.endReached': 'You have reached the end.',
   'todos.loadingMore': 'Loading more…',
 

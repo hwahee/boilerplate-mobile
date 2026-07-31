@@ -19,7 +19,16 @@
  */
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
+import { withVoiceAssistants } from './plugins/withVoiceAssistants';
+
 type AppEnv = 'development' | 'staging' | 'production';
+
+/**
+ * Verified deep-link host — Universal Links (iOS), App Links (Android) AND the
+ * Google Assistant App Action capabilities all resolve against this one origin,
+ * so it lives in a single constant.
+ */
+const LINK_HOST = 'app.example.com';
 
 // process.env has an `any`-typed index signature; narrow it once here.
 const processEnv = process.env as Record<string, string | undefined>;
@@ -66,8 +75,9 @@ const PROFILES: Record<AppEnv, Profile> = {
 
 const profile = PROFILES[APP_ENV];
 const bundleId = `com.example.mobileboilerplate${profile.bundleIdSuffix}`;
+const apiBaseUrl = processEnv.EXPO_PUBLIC_API_URL ?? profile.apiBaseUrl;
 
-export default ({ config }: ConfigContext): ExpoConfig => ({
+const baseConfig = ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: profile.name,
   slug: 'mobile-boilerplate',
@@ -99,7 +109,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     buildNumber: '1', // managed per release by EAS (`autoIncrement`), not by hand
     supportsTablet: false, // phones only (support matrix)
     // Universal Links: requires the AASA file on this domain.
-    associatedDomains: [`applinks:app.example.com`],
+    associatedDomains: [`applinks:${LINK_HOST}`],
   },
   android: {
     package: bundleId,
@@ -109,14 +119,39 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         action: 'VIEW',
         autoVerify: true,
-        data: [{ scheme: 'https', host: 'app.example.com', pathPrefix: '/' }],
+        data: [{ scheme: 'https', host: LINK_HOST, pathPrefix: '/' }],
         category: ['BROWSABLE', 'DEFAULT'],
       },
     ],
   },
   extra: {
     appEnv: APP_ENV,
-    apiBaseUrl: processEnv.EXPO_PUBLIC_API_URL ?? profile.apiBaseUrl,
+    apiBaseUrl,
     eas: processEnv.EAS_PROJECT_ID ? { projectId: processEnv.EAS_PROJECT_ID } : undefined,
   },
 });
+
+/**
+ * Config plugins are applied as FUNCTIONS rather than through the `plugins`
+ * array: `ExpoConfig['plugins']` is typed for string module references only,
+ * so an array entry would need a cast. Composing them here keeps the wiring
+ * fully type-checked, and the order is explicit.
+ *
+ * withVoiceAssistants — Siri App Intents + Google Assistant App Actions. The
+ * intents themselves are generated from src/shared/voice/catalog.ts
+ * (`bun run voice:generate`); the plugin only wires the generated files into
+ * the native projects at prebuild.
+ */
+export default (context: ConfigContext): ExpoConfig =>
+  withVoiceAssistants(baseConfig(context), {
+    linkOrigin: `https://${LINK_HOST}`,
+    scheme: profile.scheme,
+    // Public, like everything else in the bundle. The voice TOKEN is NOT here —
+    // it lives in the keychain access group below.
+    apiBaseUrl: apiBaseUrl ?? '',
+    // Must also be registered on the App ID in the Apple developer portal.
+    keychainAccessGroup: `$(AppIdentifierPrefix)${bundleId}.voice`,
+    // Locales with a generated AppShortcuts.<locale>.strings — keep in sync
+    // with SUPPORTED_LOCALES in @shared/i18n (minus the default locale).
+    localizedPhrases: ['ko'],
+  });

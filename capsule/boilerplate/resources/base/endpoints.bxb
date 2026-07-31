@@ -1,0 +1,21 @@
+/**
+ * Maps each action onto the JavaScript that fulfils it.
+ *
+ * `local-endpoint` means the JS runs in Bixby's own sandbox on Samsung's
+ * cloud — which is exactly why the capsule cannot read anything from the
+ * phone (no keychain, no app state) and must authenticate to our API on its
+ * own. See ../../code/ and docs/voice-assistant.md.
+ */
+endpoints {
+  action-endpoints {
+    action-endpoint (TodoCreate) {
+      accepted-inputs (title)
+      local-endpoint (TodoCreate.js)
+    }
+
+    action-endpoint (TodoSummary) {
+      accepted-inputs ()
+      local-endpoint (TodoSummary.js)
+    }
+  }
+}

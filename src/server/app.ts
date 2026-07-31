@@ -18,6 +18,7 @@ import { livenessRoute, readinessRoute, type AppState } from './routes/health';
 import { pushTokenRoutes, pushTokenUnregisterRoute } from './routes/push-tokens';
 import { todoCollectionRoutes, todoItemRoutes } from './routes/todos';
 import { versionPolicyRoute } from './routes/version-policy';
+import { voiceIntentRoute } from './routes/voice';
 
 /** Server-side WebSocket topic that todo change events are published to. */
 const WS_TOPIC_TODOS = 'ws.todos';
@@ -42,6 +43,9 @@ export function buildApp(container: Container, state: AppState) {
       '/api/app-config': appConfigRoute(container, ungatedDeps),
       '/api/todos': todoCollectionRoutes(container, deps),
       '/api/todos/:id': todoItemRoutes(container, deps),
+      // Ungated: the callers are assistants (a Bixby Capsule on Samsung's
+      // cloud, a Swift App Intent), not app binaries with a store version.
+      '/api/voice/:intentId': voiceIntentRoute(container, ungatedDeps),
       '/api/push-tokens': pushTokenRoutes(container, deps),
       '/api/push-tokens/unregister': pushTokenUnregisterRoute(container, deps),
       '/api/admin/version-policy/:platform': adminVersionPolicyRoute(container, deps),

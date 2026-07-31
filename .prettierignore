@@ -5,3 +5,7 @@ bun.lock
 .expo/
 apps/mobile/android/
 apps/mobile/ios/
+# Native voice artifacts: Swift/.strings/.bxb are not prettier's languages, and
+# the XML is generated — reformatting it would break `bun run voice:check`.
+apps/mobile/native/
+capsule/

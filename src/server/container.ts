@@ -11,6 +11,8 @@
  * memory vs redis pub/sub, dry-run vs expo push), so swapping infrastructure
  * is invisible to services and routes.
  */
+import { VOICE_SCOPES } from '@shared/voice/catalog';
+
 import type { ServerConfig } from './config';
 import { createPostgresDb, createPostgresUnitOfWork, type PostgresDb } from './db/postgres';
 import { createLogger, type Logger } from './lib/log';
@@ -44,6 +46,11 @@ import { AppConfigService } from './services/app-config-service';
 import { PushTokenService } from './services/push-token-service';
 import { TodoService } from './services/todo-service';
 import { VersionPolicyService } from './services/version-policy-service';
+import { VoiceService } from './services/voice-service';
+import {
+  createStaticVoiceTokenVerifier,
+  type VoiceTokenVerifier,
+} from './services/voice-token-service';
 
 export interface Container {
   readonly config: ServerConfig;
@@ -52,6 +59,10 @@ export interface Container {
   versionPolicyService(): VersionPolicyService;
   appConfigService(): AppConfigService;
   pushTokenService(): PushTokenService;
+  /** Executes the `api`-mode voice intents (Siri / Bixby call these). */
+  voiceService(): VoiceService;
+  /** Resolves the caller of /api/voice/* — the swap point for real auth. */
+  voiceTokenVerifier(): VoiceTokenVerifier;
   pubsub(): PubSub;
   /** Health probe: is the persistence layer reachable? */
   dbPing(): Promise<boolean>;
@@ -78,6 +89,8 @@ export interface ContainerOverrides {
   pushSender?: PushSender;
   /** Shrink the version-policy cache TTL in tests. */
   versionPolicyCacheTtlMs?: number;
+  /** Stand in for real voice auth (per-user tokens, OAuth account linking). */
+  voiceTokenVerifier?: VoiceTokenVerifier;
 }
 
 export function createContainer(
@@ -160,6 +173,14 @@ export function createContainer(
   const pushTokenService = lazy(
     () => new PushTokenService({ tokens: pushTokenRepository(), sender: pushSender() }),
   );
+  const voiceService = lazy(() => new VoiceService({ todos: todoService() }));
+  const voiceTokenVerifier = lazy<VoiceTokenVerifier>(
+    () =>
+      overrides.voiceTokenVerifier ??
+      // The single shared secret grants every catalog scope. A real verifier
+      // returns the scopes actually linked to that user.
+      createStaticVoiceTokenVerifier(config.voiceToken, VOICE_SCOPES),
+  );
 
   return {
     config,
@@ -168,6 +189,8 @@ export function createContainer(
     versionPolicyService,
     appConfigService,
     pushTokenService,
+    voiceService,
+    voiceTokenVerifier,
     pubsub,
     async dbPing() {
       if (config.dbDriver === 'memory') return true;

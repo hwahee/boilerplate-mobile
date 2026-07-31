@@ -48,6 +48,9 @@ export const ko: Record<MessageKey, string> = {
   'todos.status.done': '완료',
   'todos.toggleStatus': '"{title}" 항목을 {status} 상태로 변경',
   'todos.deleteTodo': '"{title}" 삭제',
+  'todos.searchResults': '‘{query}’ 검색 결과',
+  'todos.searchClear': '검색 지우기',
+  'todos.searchEmpty': '‘{query}’와 일치하는 항목이 없어요.',
   'todos.endReached': '마지막 항목까지 확인했어요.',
   'todos.loadingMore': '더 불러오는 중…',
 

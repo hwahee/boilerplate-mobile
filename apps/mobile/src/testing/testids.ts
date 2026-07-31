@@ -47,6 +47,9 @@ export const TESTID = {
     errorRetry: 'todos.error.retry',
     empty: 'todos.empty',
     footerLoading: 'todos.footer.loading',
+    /** Shown when a voice search set `?q=` on the route. */
+    searchBanner: 'todos.search.banner',
+    searchClear: 'todos.search.clear',
     filter: (status: 'all' | 'open' | 'done') => `todos.filter.${status}`,
     item: (id: string) => `todos.item.${id}`,
     itemToggle: (id: string) => `todos.item.${id}.toggle`,

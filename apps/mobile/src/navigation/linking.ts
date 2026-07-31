@@ -13,6 +13,12 @@
  * Notification taps: send `{"url": "https://app.example.com/todos"}` in the
  * push payload — expo-linking hands it to React Navigation via this config,
  * landing the user on the exact screen.
+ *
+ * NOT here on purpose: `…/voice/<intent>` links from Siri/Bixby/Assistant.
+ * Those are COMMANDS, not screen addresses — "search for milk" is an action
+ * with an argument, and half of them navigate nowhere at all. They are matched
+ * by src/voice instead. React Navigation ignores paths it cannot resolve, so
+ * both consumers read the same URL stream without stepping on each other.
  */
 import * as Linking from 'expo-linking';
 import type { LinkingOptions } from '@react-navigation/native';

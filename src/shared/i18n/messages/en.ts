@@ -62,6 +62,13 @@ export const en = {
   'notFound.title': 'Page not found',
   'notFound.goHome': 'Go to home',
 
+  // Spoken back by Siri/Bixby/Assistant — see src/shared/voice. Keep these
+  // short and unambiguous when heard once, at speed, over road noise.
+  'voice.todo.created': 'Added {title} to your todos.',
+  'voice.todo.summary.empty': 'Nothing left. You are all done.',
+  'voice.todo.summary.one': 'You have one todo left.',
+  'voice.todo.summary.many': 'You have {count} todos left.',
+
   'error.validation': 'The request contains invalid data.',
   'error.notFound': 'The requested resource was not found.',
   'error.unauthorized': 'You are not allowed to perform this action.',

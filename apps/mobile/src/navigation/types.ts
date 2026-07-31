@@ -10,7 +10,12 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
    implicit index signature required by ParamListBase. */
 
 export type MainTabParamList = {
-  TodosTab: undefined;
+  /**
+   * `q` filters the list by title. Set by the `todos.search` voice intent
+   * (src/voice) — the search term lives in the route, not in screen state,
+   * so a second voice search replaces it rather than merging with it.
+   */
+  TodosTab: { q?: string } | undefined;
   SettingsTab: undefined;
 };
 

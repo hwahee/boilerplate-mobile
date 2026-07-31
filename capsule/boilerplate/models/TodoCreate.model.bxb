@@ -1,0 +1,19 @@
+/**
+ * `todo.create` — POST /api/voice/todo.create
+ *
+ * Mirrors the catalog entry: exactly ONE required text slot, because a driver
+ * cannot be walked through a multi-slot dialogue.
+ */
+action (TodoCreate) {
+  type (Search)
+  description (Adds a todo the user dictated.)
+
+  collect {
+    input (title) {
+      type (TodoTitle)
+      min (Required) max (One)
+    }
+  }
+
+  output (VoiceSpeech)
+}

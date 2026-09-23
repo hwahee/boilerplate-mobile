@@ -75,6 +75,12 @@ export const ko: Record<MessageKey, string> = {
   'settings.checkUpdate': '업데이트 확인',
   'settings.upToDate': '최신 버전을 사용하고 있어요.',
 
+  'palette.recent': '최근 사용',
+  'palette.hexLabel': 'HEX 값',
+  'palette.hexInvalid': '#5b5bd6 또는 #5b5bd680 형식으로 입력하세요.',
+  'palette.customColor': '더 많은 색 (시스템 피커)',
+  'palette.contrastWarning': '대비 {ratio}:1 — 최소 권장 {minimum}:1 미만입니다.',
+
   'designSystem.title': '디자인 시스템',
   'designSystem.description':
     '모든 토큰과 컴포넌트를 한 화면에서 확인합니다. 테마·디자인·언어는 설정에서 전환하세요.',
@@ -84,6 +90,7 @@ export const ko: Record<MessageKey, string> = {
   'designSystem.formFields': '입력 필드',
   'designSystem.feedback': '피드백',
   'designSystem.dataDisplay': '데이터 표시',
+  'designSystem.colorInput': '색상 입력 (팔레트)',
   'designSystem.disclosure': '디스클로저 (아코디언)',
 
   'error.validation': '요청에 잘못된 데이터가 포함되어 있습니다.',

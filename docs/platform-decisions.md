@@ -30,6 +30,7 @@
 | 3   | 2026-07 | 지원 기기 범위       | 웹/태블릿/폴더블 코드 전면 배제                        | 적용 |
 | 4   | 2026-07 | 음성 어시스턴트      | 진입점만 분리, 실행은 카탈로그 계약으로 통합           | 적용 |
 | 5   | 2026-09 | 스킨 글꼴            | 분리하지 않음 — 토큰의 글꼴 표 + `ThemeProvider` 한 곳 | 적용 |
+| 6   | 2026-09 | 시스템 색 피커       | `native-picker.ios.ts` / `.android.ts` 분리            | 적용 |
 
 ### 1. 스토어 업데이트 이동 (`apps/mobile/src/version/store-update.*`)
 
@@ -84,3 +85,15 @@
   - 결과적으로 휴대폰 브라우저에서 웹 스킨을 열었을 때와 같은 글꼴이 나온다.
 - **기각**: Segoe UI/Tahoma를 번들하는 안. Microsoft 라이선스 글꼴이라 재배포할 수 없다.
 - **근거와 전체 배경**: [design-skins-mobile.md](./design-skins-mobile.md)
+
+### 6. 시스템 색 피커 (`apps/mobile/src/components/palette/native-picker.*`)
+
+- **문제**: Palette의 3단계 "더 많은 색"은 웹에서 브라우저의 `<input type="color">`로 넘어간다.
+  iOS에는 대응하는 시스템 피커(`UIColorPickerViewController`, 불투명도 포함)가 있지만,
+  Android에는 시스템 색 피커가 없다.
+- **결정**: 파일 분리. iOS는 로컬 Expo 모듈(`apps/mobile/modules/native-color-picker`,
+  Swift)을 호출하고, Android는 "없음"을 알린다. Palette는 `nativeColorPickerAvailable`만 보고
+  버튼을 숨기거나 보인다. 플랫폼은 모른다.
+- **비용**: 두 플랫폼의 기능이 다르다(Android는 프리셋 + hex까지). hex만으로도 모든 색을
+  표현할 수 있으므로 할 수 있는 일 자체는 같고, 편의성만 다르다.
+- **근거와 전체 배경**: [palette-mobile.md](./palette-mobile.md)

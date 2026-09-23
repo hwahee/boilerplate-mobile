@@ -1,0 +1,60 @@
+# Palette flow (DEV build): open the design-system gallery, pick a preset,
+# then type an invalid and a valid hex value.
+# Run with: maestro test apps/mobile/e2e/design-system-palette.yaml
+appId: com.example.mobileboilerplate.dev
+---
+- launchApp
+- runFlow:
+    when:
+      visible:
+        id: 'boot.ad.skip'
+    commands:
+      - tapOn:
+          id: 'boot.ad.skip'
+- extendedWaitUntil:
+    visible:
+      id: 'todos.screen'
+    timeout: 15000
+
+- tapOn:
+    id: 'tabs.settings'
+- scrollUntilVisible:
+    element:
+      id: 'settings.design-system-link'
+- tapOn:
+    id: 'settings.design-system-link'
+- scrollUntilVisible:
+    element:
+      id: 'ds.palette'
+
+# L1: a preset commits and closes the sheet.
+- tapOn:
+    id: 'ds.palette'
+- assertVisible:
+    id: 'ds.palette.sheet'
+- tapOn:
+    id: 'ds.palette.swatch.22c55e'
+- assertNotVisible:
+    id: 'ds.palette.sheet'
+- assertVisible:
+    text: 'Green'
+
+# L2: an invalid hex shows the error, a valid one is accepted.
+- tapOn:
+    id: 'ds.palette'
+- tapOn:
+    id: 'ds.palette.hex'
+- eraseText
+- inputText: 'nope'
+- pressKey: Enter
+- assertVisible:
+    id: 'ds.palette.hex.error'
+- eraseText
+- inputText: '#ABC'
+- pressKey: Enter
+- assertNotVisible:
+    id: 'ds.palette.hex.error'
+- tapOn:
+    id: 'ds.palette.sheet.close'
+- assertVisible:
+    text: '#aabbcc'

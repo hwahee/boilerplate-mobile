@@ -211,3 +211,102 @@ export function touchSlop(tokens: Tokens, visibleHeight: number): number | undef
   const missing = tokens.minTouchTarget - visibleHeight;
   return missing > 0 ? Math.ceil(missing / 2) : undefined;
 }
+
+// ── palette (color input) ────────────────────────────────────────────────────
+
+export interface PaletteSkin {
+  /** Visible swatch edge. */
+  swatchSize: number;
+  swatchRadius: number;
+  /** Gap between swatches in the grid. */
+  gridGap: number;
+  /** Extra touch area around a swatch (never more than half the gap). */
+  swatchHitSlop: number | undefined;
+  /** Selected-swatch ring as a box-shadow, or null when `selectedInset` draws it. */
+  selectedRing: string | null;
+  /** Selected-swatch marker drawn INSIDE the swatch (office's -2px outline). */
+  selectedInset: ViewStyle | null;
+  /** Sheet surface overrides + its inner padding/gap. */
+  sheet: ViewStyle;
+  sheetPadding: number;
+  sectionGap: number;
+  /** Trigger and the "more colors" button. */
+  trigger: ViewStyle;
+  triggerWeight?: TextStyle['fontWeight'];
+  nativeButton: ViewStyle;
+  /** The press-and-hold callout (the web's hover tooltip). */
+  callout: ViewStyle;
+  calloutText: { color: string; fontWeight?: TextStyle['fontWeight'] };
+  /** Swatch pops (scale + tilt) while pressed — kids' hover/focus pop. */
+  pressPop: boolean;
+}
+
+/**
+ * Port of the `.palette*` rules in main.css plus their office/kids overrides.
+ * A/B size swatches to the touch minimum (their own mobile values); office and
+ * kids keep the web's `--control-height * 0.75`, with hitSlop filling in.
+ */
+export function paletteSkin(tokens: Tokens): PaletteSkin {
+  const { colors, bevel } = tokens;
+  const base: PaletteSkin = {
+    swatchSize: tokens.minTouchTarget,
+    swatchRadius: tokens.radius.control / 1.5,
+    gridGap: tokens.spacing.sm,
+    swatchHitSlop: undefined,
+    selectedRing: `0px 0px 0px 2px ${colors.surfaceAlt}, 0px 0px 0px 4px ${colors.focus}`,
+    selectedInset: null,
+    sheet: {},
+    sheetPadding: 12,
+    sectionGap: 12,
+    trigger: {},
+    nativeButton: {},
+    callout: { backgroundColor: colors.text, borderRadius: tokens.radius.sm },
+    calloutText: { color: colors.surface },
+    pressPop: false,
+  };
+
+  if (tokens.variant === 'office' && bevel) {
+    const sunken = { ...bevelBorder(bevel, 'sunken'), borderRadius: 1 };
+    const swatchSize = Math.round(tokens.controlHeight * 0.75);
+    return {
+      ...base,
+      swatchSize,
+      swatchRadius: 0,
+      gridGap: 2, // dense, like the Office color grid
+      swatchHitSlop: 1,
+      selectedRing: null,
+      selectedInset: { borderWidth: 2, borderColor: colors.primary },
+      sheet: bevelBorder(bevel, 'raised'),
+      sheetPadding: 2,
+      sectionGap: 2,
+      trigger: sunken,
+      nativeButton: sunken,
+      // The unmistakable pale-yellow tooltip of the era.
+      callout: {
+        backgroundColor: '#ffffe1',
+        borderWidth: 1,
+        borderColor: '#000000',
+        borderRadius: 0,
+      },
+      calloutText: { color: '#000000' },
+    };
+  }
+  if (tokens.variant === 'kids') {
+    const swatchSize = Math.round(tokens.controlHeight * 0.75);
+    return {
+      ...base,
+      swatchSize,
+      swatchRadius: tokens.radius.full,
+      swatchHitSlop: Math.min(
+        tokens.spacing.sm / 2,
+        Math.ceil((tokens.minTouchTarget - swatchSize) / 2),
+      ),
+      trigger: { boxShadow: KIDS_BUTTON_SHADOW },
+      triggerWeight: '800',
+      callout: { ...base.callout, borderRadius: tokens.radius.full },
+      calloutText: { ...base.calloutText, fontWeight: '700' },
+      pressPop: true,
+    };
+  }
+  return base;
+}

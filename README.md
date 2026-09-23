@@ -249,6 +249,10 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
   이식한 것이며, 토큰 값이 웹 `tokens.css`와 같은지는 테스트가 CSS를 직접 파싱해 검증합니다.
   kids는 모바일에서 베타입니다. 웹 `Accordion`도 같은 계약으로 이식했습니다 —
   **[docs/design-skins-mobile.md](docs/design-skins-mobile.md)**.
+- **색상 입력(Palette)**: 웹과 같은 값 계약과 같은 기본 32색(`@shared/color/presets`)을
+  씁니다. 앱에서는 바텀시트로 열리고, 스와치를 누르고 있으면 반환될 값이 말풍선으로
+  보입니다. iOS에서는 시스템 색 피커도 쓸 수 있습니다 —
+  **[docs/palette-mobile.md](docs/palette-mobile.md)**.
 - **UI 자동화**: testID 레지스트리 + Maestro 플로우 —
   **[docs/ui-automation-mobile.md](docs/ui-automation-mobile.md)**.
 - **음성 어시스턴트**(`src/shared/voice`, `apps/mobile/src/voice`, `capsule/`):

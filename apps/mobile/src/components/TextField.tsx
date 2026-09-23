@@ -27,6 +27,10 @@ export interface TextFieldProps {
   returnKeyType?: TextInputProps['returnKeyType'];
   autoFocus?: boolean;
   editable?: boolean;
+  /** Fires after the field loses focus (e.g. to commit a draft value). */
+  onBlur?: () => void;
+  autoCapitalize?: TextInputProps['autoCapitalize'];
+  autoCorrect?: boolean;
 }
 
 export function TextField({
@@ -40,6 +44,9 @@ export function TextField({
   returnKeyType,
   autoFocus,
   editable = true,
+  onBlur: onBlurProp,
+  autoCapitalize,
+  autoCorrect,
 }: TextFieldProps) {
   const { tokens, reduceMotion } = useTheme();
   const { colors } = tokens;
@@ -55,6 +62,7 @@ export function TextField({
   const onBlur = () => {
     setFocused(false);
     if (pops) pop.animateTo(0);
+    onBlurProp?.();
   };
 
   return (
@@ -92,6 +100,8 @@ export function TextField({
           returnKeyType={returnKeyType}
           autoFocus={autoFocus}
           editable={editable}
+          autoCapitalize={autoCapitalize}
+          autoCorrect={autoCorrect}
           accessibilityLabel={label ?? placeholder}
           accessibilityState={{ disabled: !editable }}
           style={{

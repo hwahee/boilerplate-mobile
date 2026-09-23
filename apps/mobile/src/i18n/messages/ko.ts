@@ -65,6 +65,8 @@ export const ko: Record<MessageKey, string> = {
   'settings.design': '디자인',
   'settings.design.a': '디자인 A (심미성)',
   'settings.design.b': '디자인 B (시인성)',
+  'settings.design.office': '오피스 스킨 (클래식 데스크톱)',
+  'settings.design.kids': '어린이 스킨 (놀이터 · 베타)',
   'settings.developer': '개발자',
   'settings.designSystem': '디자인 시스템 갤러리',
   'settings.about': '정보',
@@ -82,6 +84,7 @@ export const ko: Record<MessageKey, string> = {
   'designSystem.formFields': '입력 필드',
   'designSystem.feedback': '피드백',
   'designSystem.dataDisplay': '데이터 표시',
+  'designSystem.disclosure': '디스클로저 (아코디언)',
 
   'error.validation': '요청에 잘못된 데이터가 포함되어 있습니다.',
   'error.notFound': '요청한 리소스를 찾을 수 없습니다.',

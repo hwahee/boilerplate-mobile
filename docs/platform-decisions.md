@@ -29,6 +29,7 @@
 | 2   | 2026-07 | 로컬 API 접속 주소   | 분리하지 않음 — `env.ts` 안 `Platform.select` 국소화   | 적용 |
 | 3   | 2026-07 | 지원 기기 범위       | 웹/태블릿/폴더블 코드 전면 배제                        | 적용 |
 | 4   | 2026-07 | 음성 어시스턴트      | 진입점만 분리, 실행은 카탈로그 계약으로 통합           | 적용 |
+| 5   | 2026-09 | 스킨 글꼴            | 분리하지 않음 — 토큰의 글꼴 표 + `ThemeProvider` 한 곳 | 적용 |
 
 ### 1. 스토어 업데이트 이동 (`apps/mobile/src/version/store-update.*`)
 
@@ -69,3 +70,17 @@
   발화 문구·슬롯·인텐트 id가 세 플랫폼에서 어긋날 수 없다 — 손으로 관리했다면
   "한쪽 폰에서만 되는 발화"라는 형태로 조용히 깨졌을 것이다.
 - **근거와 전체 배경**: [voice-assistant.md](./voice-assistant.md)
+
+### 5. 스킨 글꼴 (`apps/mobile/src/theme/tokens.ts`, `ThemeProvider.tsx`)
+
+- **문제**: office/kids 스킨은 웹 글꼴 스택(`'Segoe UI', Tahoma, Geneva, Verdana, …` /
+  `'Baloo 2', 'Comic Sans MS', 'Chalkboard SE', …`)을 쓰는데, 앱에는 글꼴 폴백이 없고
+  기기에 설치된 글꼴이 iOS와 Android에서 다르다.
+- **결정**: 파일 분리하지 **않음**. 달라지는 것은 글꼴 이름 값 하나다. 그래서 웹 스택을 **각
+  OS에 실제로 설치된 첫 글꼴**로 푼 표를 `tokens.ts`에 두고, `getTokens(…, platform)`가 값을
+  고른다. OS 판별은 `ThemeProvider`의 `Platform.OS` 한 곳에서만 한다.
+  - office: iOS `Verdana`, Android 시스템 글꼴
+  - kids: iOS `Chalkboard SE`, Android 시스템 글꼴
+  - 결과적으로 휴대폰 브라우저에서 웹 스킨을 열었을 때와 같은 글꼴이 나온다.
+- **기각**: Segoe UI/Tahoma를 번들하는 안. Microsoft 라이선스 글꼴이라 재배포할 수 없다.
+- **근거와 전체 배경**: [design-skins-mobile.md](./design-skins-mobile.md)

@@ -1,6 +1,6 @@
 /**
  * Settings — language (device/EN/KO), theme (system/light/dark), design
- * variant (A/B), OTA update check, and the dev-only design-system gallery.
+ * variant (A/B/office/kids), OTA update check, and the dev-only design-system gallery.
  * Every preference is persisted through the kv-store facade.
  */
 import { useState } from 'react';
@@ -15,7 +15,8 @@ import { env } from '../config/env';
 import { useLocale, type LocalePreference } from '../i18n/LocaleProvider';
 import type { RootStackParamList } from '../navigation/types';
 import { useTheme, type ThemeMode } from '../theme/ThemeProvider';
-import type { DesignVariant } from '../theme/tokens';
+import { touchSlop } from '../theme/skin';
+import { DESIGN_VARIANTS, type DesignVariant } from '../theme/tokens';
 import { Screen } from '../components/Screen';
 import { TESTID } from '../testing/testids';
 import { getUpdateChannel } from '../version/updates';
@@ -53,11 +54,12 @@ function OptionRow<T extends string>({
             accessibilityRole="radio"
             accessibilityState={{ selected: isSelected }}
             accessibilityLabel={labelFor(value)}
+            hitSlop={touchSlop(tokens, tokens.chipHeight)}
             style={{
-              paddingHorizontal: tokens.spacing.md,
-              minHeight: tokens.minTouchTarget - 8,
+              paddingHorizontal: tokens.controlPaddingX,
+              minHeight: tokens.chipHeight,
               justifyContent: 'center',
-              borderRadius: tokens.radius.md,
+              borderRadius: tokens.radius.control,
               borderWidth: tokens.borderWidth,
               borderColor: isSelected ? tokens.colors.primary : tokens.colors.border,
               backgroundColor: isSelected ? tokens.colors.primary : tokens.colors.surface,
@@ -136,7 +138,7 @@ export function SettingsScreen() {
             {t('settings.design')}
           </AppText>
           <OptionRow<DesignVariant>
-            options={['a', 'b']}
+            options={DESIGN_VARIANTS}
             selected={variant}
             onSelect={setVariant}
             testIDFor={(value) => TESTID.settings.design(value)}

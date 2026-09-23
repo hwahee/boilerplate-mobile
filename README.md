@@ -42,7 +42,7 @@ apps/
     ├── src/boot/    # 부트 상태 머신 (config·정책·광고 슬롯 게이트)
     ├── src/version/ # 강제/선택 업데이트, OTA·스토어 파사드
     ├── src/config/  # 원격 설정(캐시·폴링·WS 푸시), 환경 변수
-    ├── src/theme/   # 디자인 토큰 (라이트/다크 × 디자인 A/B)
+    ├── src/theme/   # 디자인 토큰 (라이트/다크 × A/B/office/kids) + 스킨 규칙
     ├── src/i18n/    # 앱 메시지 카탈로그 + 로케일 컨텍스트
     ├── src/testing/ # testID 레지스트리 (docs/ui-automation-mobile.md 참고)
     ├── src/voice/   # ★ 음성 명령이 실제로 실행되는 곳 (Siri/Bixby/Assistant 공통)
@@ -243,6 +243,10 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
   접근 가능하며, 토큰이 비어 있으면 관리자 API는 완전히 비활성입니다.
 - **플랫폼 분기 정책**: 통합이 기본, 분기는 기록을 남기고 `*.ios.ts`/`*.android.ts`로 —
   **[docs/platform-decisions.md](docs/platform-decisions.md)**.
+- **디자인 스킨**: 웹과 같은 네 가지 디자인(A/B/office/kids). office와 kids는 웹 스킨을
+  이식한 것이며, 토큰 값이 웹 `tokens.css`와 같은지는 테스트가 CSS를 직접 파싱해 검증합니다.
+  kids는 모바일에서 베타입니다. 웹 `Accordion`도 같은 계약으로 이식했습니다 —
+  **[docs/design-skins-mobile.md](docs/design-skins-mobile.md)**.
 - **UI 자동화**: testID 레지스트리 + Maestro 플로우 —
   **[docs/ui-automation-mobile.md](docs/ui-automation-mobile.md)**.
 - **음성 어시스턴트**(`src/shared/voice`, `apps/mobile/src/voice`, `capsule/`):

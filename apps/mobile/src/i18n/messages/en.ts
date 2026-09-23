@@ -76,6 +76,8 @@ export const en = {
   'settings.design': 'Design',
   'settings.design.a': 'Design A (aesthetic)',
   'settings.design.b': 'Design B (high visibility)',
+  'settings.design.office': 'Office skin (classic desktop)',
+  'settings.design.kids': 'Kids skin (playground · beta)',
   'settings.developer': 'Developer',
   'settings.designSystem': 'Design system gallery',
   'settings.about': 'About',
@@ -93,6 +95,7 @@ export const en = {
   'designSystem.formFields': 'Form fields',
   'designSystem.feedback': 'Feedback',
   'designSystem.dataDisplay': 'Data display',
+  'designSystem.disclosure': 'Disclosure (accordion)',
 
   'error.validation': 'The request contains invalid data.',
   'error.notFound': 'The requested resource was not found.',

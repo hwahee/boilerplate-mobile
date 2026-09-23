@@ -2,9 +2,15 @@
  * Text input. `testID` is REQUIRED; when an error is shown, an
  * `${testID}.error` element appears (automation waits on it) and screen
  * readers announce it via the live region.
+ *
+ * Skins (theme/skin.ts): office is a sunken bevel with the dotted focus
+ * rectangle; kids pops (scale + overshoot) and glows while focused.
  */
-import { TextInput, View, type TextInputProps } from 'react-native';
+import { useState } from 'react';
+import { Animated, TextInput, View, type TextInputProps } from 'react-native';
 
+import { useMotionProgress } from '../theme/motion';
+import { fieldSkin } from '../theme/skin';
 import { useTheme } from '../theme/ThemeProvider';
 import { AppText } from './AppText';
 
@@ -35,9 +41,21 @@ export function TextField({
   autoFocus,
   editable = true,
 }: TextFieldProps) {
-  const { tokens } = useTheme();
+  const { tokens, reduceMotion } = useTheme();
   const { colors } = tokens;
   const hasError = !!error;
+  const [focused, setFocused] = useState(false);
+  const pop = useMotionProgress();
+  const pops = tokens.motion.focusScale !== 1 && !reduceMotion;
+
+  const onFocus = () => {
+    setFocused(true);
+    if (pops) pop.animateTo(1);
+  };
+  const onBlur = () => {
+    setFocused(false);
+    if (pops) pop.animateTo(0);
+  };
 
   return (
     <View style={{ gap: tokens.spacing.xs }}>
@@ -46,29 +64,53 @@ export function TextField({
           {label}
         </AppText>
       ) : null}
-      <TextInput
-        testID={testID}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={colors.textMuted}
-        onSubmitEditing={onSubmitEditing}
-        returnKeyType={returnKeyType}
-        autoFocus={autoFocus}
-        editable={editable}
-        accessibilityLabel={label ?? placeholder}
-        accessibilityState={{ disabled: !editable }}
-        style={{
-          minHeight: tokens.minTouchTarget,
-          borderWidth: tokens.borderWidth,
-          borderColor: hasError ? colors.danger : colors.border,
-          borderRadius: tokens.radius.md,
-          paddingHorizontal: tokens.spacing.md,
-          fontSize: tokens.type.body,
-          color: colors.text,
-          backgroundColor: colors.surface,
-        }}
-      />
+      <Animated.View
+        style={
+          pops
+            ? {
+                transform: [
+                  {
+                    scale: pop.progress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1, tokens.motion.focusScale],
+                    }),
+                  },
+                ],
+              }
+            : undefined
+        }
+      >
+        <TextInput
+          testID={testID}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={colors.textMuted}
+          onSubmitEditing={onSubmitEditing}
+          returnKeyType={returnKeyType}
+          autoFocus={autoFocus}
+          editable={editable}
+          accessibilityLabel={label ?? placeholder}
+          accessibilityState={{ disabled: !editable }}
+          style={{
+            minHeight: tokens.controlHeight,
+            borderWidth: tokens.borderWidth,
+            borderColor: hasError ? colors.danger : colors.border,
+            borderRadius: tokens.radius.control,
+            paddingHorizontal: tokens.controlPaddingX,
+            // Compact (office) inputs: drop the platform's default vertical
+            // padding so 13pt text fits the 28pt box.
+            paddingVertical: tokens.controlHeight < tokens.minTouchTarget ? 0 : undefined,
+            fontSize: tokens.type.body,
+            fontFamily: tokens.type.fontFamily,
+            color: colors.text,
+            backgroundColor: colors.surface,
+            ...fieldSkin(tokens, { focused }),
+          }}
+        />
+      </Animated.View>
       {hasError ? (
         <AppText
           testID={`${testID}.error`}

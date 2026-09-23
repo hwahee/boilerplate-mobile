@@ -59,7 +59,7 @@ export const TESTID = {
     screen: 'settings.screen',
     locale: (value: 'system' | 'en' | 'ko') => `settings.locale.${value}`,
     themeMode: (value: 'system' | 'light' | 'dark') => `settings.theme.${value}`,
-    design: (value: 'a' | 'b') => `settings.design.${value}`,
+    design: (value: 'a' | 'b' | 'office' | 'kids') => `settings.design.${value}`,
     designSystemLink: 'settings.design-system-link',
     checkUpdate: 'settings.check-update',
   },

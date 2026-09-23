@@ -1,5 +1,5 @@
-# Settings flow: switch design variant + theme + language and verify the
-# design-system entry stays reachable.
+# Settings flow: switch design variant (A/B/office/kids) + theme + language
+# and verify the design-system entry stays reachable.
 # Run with: maestro test apps/mobile/e2e/settings-theme-design.yaml
 appId: com.example.mobileboilerplate.dev
 ---
@@ -30,6 +30,19 @@ appId: com.example.mobileboilerplate.dev
     id: 'settings.locale.ko'
 - assertVisible:
     text: '설정'
+
+# Web-ported skins: office (light) and kids (beta), then check the gallery
+# entry is still reachable with office's compact controls.
+- tapOn:
+    id: 'settings.theme.light'
+- tapOn:
+    id: 'settings.design.office'
+- assertVisible:
+    id: 'settings.design-system-link'
+- tapOn:
+    id: 'settings.design.kids'
+- assertVisible:
+    id: 'settings.design-system-link'
 
 # Back to defaults
 - tapOn:

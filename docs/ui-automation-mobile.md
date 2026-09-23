@@ -11,7 +11,7 @@
 ## 원칙
 
 1. **인터랙티브 디자인 시스템 컴포넌트는 `testID`가 필수 prop**입니다
-   (`Button`, `IconButton`, `TextField`). testID 없이 렌더링하면 타입 에러가 나므로
+   (`Button`, `IconButton`, `TextField`, `Accordion`). testID 없이 렌더링하면 타입 에러가 나므로
    자동화 불가능한 컨트롤이 애초에 만들어질 수 없습니다.
 2. **testID 문자열은 인라인으로 쓰지 않습니다.** 유일한 출처는
    [`apps/mobile/src/testing/testids.ts`](../apps/mobile/src/testing/testids.ts)의
@@ -26,17 +26,18 @@
 
 ## 상태 신호 (기다림/검증에 사용)
 
-| 신호                                        | 의미                         |
-| ------------------------------------------- | ---------------------------- |
-| `todos.loading` (progressbar)               | 초기 로딩 중                 |
-| `todos.error` (alert) + `todos.error.retry` | 로드 실패 / 재시도 버튼      |
-| `todos.empty`                               | 빈 목록                      |
-| `todos.footer.loading`                      | 무한 스크롤 다음 페이지 로딩 |
-| `offline.banner` (alert)                    | 오프라인 상태                |
-| `boot.screen` → 사라짐                      | 부트 시퀀스 종료             |
-| `maintenance.screen`                        | 점검 모드(kill switch) 활성  |
-| `update.force.screen`                       | 강제 업데이트 게이트         |
-| Button `accessibilityState.busy`            | mutation 진행 중             |
+| 신호                                            | 의미                         |
+| ----------------------------------------------- | ---------------------------- |
+| `todos.loading` (progressbar)                   | 초기 로딩 중                 |
+| `todos.error` (alert) + `todos.error.retry`     | 로드 실패 / 재시도 버튼      |
+| `todos.empty`                                   | 빈 목록                      |
+| `todos.footer.loading`                          | 무한 스크롤 다음 페이지 로딩 |
+| `offline.banner` (alert)                        | 오프라인 상태                |
+| `boot.screen` → 사라짐                          | 부트 시퀀스 종료             |
+| `maintenance.screen`                            | 점검 모드(kill switch) 활성  |
+| `update.force.screen`                           | 강제 업데이트 게이트         |
+| Button `accessibilityState.busy`                | mutation 진행 중             |
+| Accordion trigger `accessibilityState.expanded` | 패널 열림/닫힘 (`Accordion`) |
 
 ## testID 레지스트리 요약
 
@@ -57,12 +58,19 @@
 
 `TextField`는 에러 표시 시 자동으로 `` `${testID}.error` `` 요소를 추가합니다.
 
+`Accordion`은 항목마다 `` `${testID}.trigger.<itemId>` ``(헤더 버튼)와
+`` `${testID}.panel.<itemId>` ``(펼쳐지는 영역)를 파생합니다. 규칙은 웹 `Accordion`과 같습니다.
+열림 여부는 트리거의 `expanded` 상태로 확인하세요. 닫힌 패널은 높이가 0이고 접근성 트리에서
+빠집니다.
+
+설정의 디자인 선택지는 `settings.design.a` / `.b` / `.office` / `.kids`입니다.
+
 ## E2E — Maestro (권장)
 
 시나리오는 [`apps/mobile/e2e/`](../apps/mobile/e2e)에 YAML로 있습니다:
 
 - `boot-and-create-todo.yaml` — 부트(광고 스킵) → 할 일 생성/토글
-- `settings-theme-design.yaml` — 테마/디자인/언어 전환
+- `settings-theme-design.yaml` — 테마/디자인(A/B/office/kids)/언어 전환
 
 실행 방법:
 

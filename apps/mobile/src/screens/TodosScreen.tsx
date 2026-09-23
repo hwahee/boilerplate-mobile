@@ -29,6 +29,7 @@ import { AppText } from '../components/AppText';
 import { Badge } from '../components/Badge';
 import { Banner } from '../components/Banner';
 import { Button } from '../components/Button';
+import { CheckPop } from '../components/CheckPop';
 import { EmptyState } from '../components/EmptyState';
 import { ErrorState } from '../components/ErrorState';
 import { Screen } from '../components/Screen';
@@ -38,6 +39,7 @@ import { useConfig } from '../config/ConfigProvider';
 import { useLocale } from '../i18n/LocaleProvider';
 import { OfflineBanner } from '../offline/OfflineBanner';
 import type { MainTabParamList } from '../navigation/types';
+import { touchSlop } from '../theme/skin';
 import { useTheme } from '../theme/ThemeProvider';
 import { TESTID } from '../testing/testids';
 
@@ -109,11 +111,13 @@ export function TodosScreen() {
             justifyContent: 'center',
           }}
         >
-          <Ionicons
-            name={done ? 'checkbox' : 'square-outline'}
-            size={tokens.type.heading + 4}
-            color={done ? tokens.colors.success : tokens.colors.textMuted}
-          />
+          <CheckPop checked={done}>
+            <Ionicons
+              name={done ? 'checkbox' : 'square-outline'}
+              size={tokens.type.heading + 4}
+              color={done ? tokens.colors.success : tokens.colors.textMuted}
+            />
+          </CheckPop>
         </Pressable>
 
         <View style={{ flex: 1, gap: tokens.spacing.xs / 2 }}>
@@ -211,11 +215,12 @@ export function TodosScreen() {
                 accessibilityRole="radio"
                 accessibilityState={{ selected }}
                 accessibilityLabel={t(`todos.filter.${value}`)}
+                hitSlop={touchSlop(tokens, tokens.chipHeight)}
                 style={{
-                  paddingHorizontal: tokens.spacing.md,
-                  minHeight: tokens.minTouchTarget - 8,
+                  paddingHorizontal: tokens.controlPaddingX,
+                  minHeight: tokens.chipHeight,
                   justifyContent: 'center',
-                  borderRadius: tokens.radius.full,
+                  borderRadius: tokens.radius.pill,
                   borderWidth: tokens.borderWidth,
                   borderColor: selected ? tokens.colors.primary : tokens.colors.border,
                   backgroundColor: selected ? tokens.colors.primary : tokens.colors.surface,
@@ -245,7 +250,7 @@ export function TodosScreen() {
               gap: tokens.spacing.sm,
               paddingVertical: tokens.spacing.xs,
               paddingHorizontal: tokens.spacing.md,
-              borderRadius: tokens.radius.full,
+              borderRadius: tokens.radius.pill,
               backgroundColor: tokens.colors.surface,
               borderWidth: tokens.borderWidth,
               borderColor: tokens.colors.border,

@@ -17,6 +17,13 @@
  * built from the SAME app version; native changes require a store release by
  * construction. See docs/release-playbook.md before changing this.
  */
+// Expo compiles THIS file with sucrase but loads what it imports with plain
+// Node `require`, which cannot resolve `.ts` files — so the TypeScript config
+// plugin below failed with "Cannot find module './plugins/withVoiceAssistants'".
+// Registering sucrase's require hook (the same compiler, same version Expo
+// uses) first makes the plugin importable. Must stay the first import.
+import 'sucrase/register/ts';
+
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 import { withVoiceAssistants } from './plugins/withVoiceAssistants';

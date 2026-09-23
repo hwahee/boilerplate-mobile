@@ -4,8 +4,10 @@
  * language in Settings and come back to see everything restyle.
  */
 import { useState, type ReactNode } from 'react';
-import { ScrollView, View } from 'react-native';
+import { View } from 'react-native';
 
+import { Accordion } from '../components/Accordion';
+import { AnchoredScrollView } from '../components/AnchoredScrollView';
 import { AppText } from '../components/AppText';
 import { Badge } from '../components/Badge';
 import { Banner } from '../components/Banner';
@@ -43,7 +45,9 @@ export function DesignSystemScreen() {
 
   return (
     <Screen testID={TESTID.designSystem.screen} padded={false}>
-      <ScrollView contentContainerStyle={{ padding: tokens.spacing.md, gap: tokens.spacing.md }}>
+      <AnchoredScrollView
+        contentContainerStyle={{ padding: tokens.spacing.md, gap: tokens.spacing.md }}
+      >
         <AppText muted>{t('designSystem.description')}</AppText>
 
         <Section name="colors" title={t('designSystem.colors')}>
@@ -147,7 +151,59 @@ export function DesignSystemScreen() {
             <Badge label="Danger" tone="danger" />
           </View>
         </Section>
-      </ScrollView>
+
+        <Section name="disclosure" title={t('designSystem.disclosure')}>
+          <Accordion
+            mode="single"
+            defaultOpenIds={['motion']}
+            testID="ds.accordion"
+            items={[
+              {
+                id: 'motion',
+                title: 'Escape hatch #0 — the shift is animated',
+                content: (
+                  <AppText>
+                    Expanding inline content inevitably shifts everything below it. Instead of an
+                    instant jump, panels animate open over motion.durationExpand so the eye can
+                    track where content moved. Skins stay in charge: office zeroes it (instant, like
+                    the era), kids turns it into a springy overshoot, and the OS reduce-motion
+                    setting disables it entirely.
+                  </AppText>
+                ),
+              },
+              {
+                id: 'anchor',
+                title: 'Escape hatch #1 — the pressed trigger stays put',
+                content: (
+                  <View style={{ gap: tokens.spacing.sm }}>
+                    <AppText>
+                      In single mode, opening this item collapses the (possibly taller) item above
+                      it — without correction, this header would slide up and away from your finger.
+                      The component records where the header was and scrolls to hold it there.
+                    </AppText>
+                    <AppText>
+                      Try it: open the first item, scroll until both headers sit mid-screen, then
+                      open this one. The header holds still while the panel above folds away.
+                    </AppText>
+                  </View>
+                ),
+              },
+              {
+                id: 'reveal',
+                title: 'Escape hatch #2 — opened content is revealed',
+                content: (
+                  <AppText>
+                    If an opened panel ends up cut off by the bottom of the screen, the list scrolls
+                    just enough to bring it into view — never so far that this header leaves the
+                    screen. A shift the user asked for is guidance; a shift they didn&apos;t is a
+                    layout jump.
+                  </AppText>
+                ),
+              },
+            ]}
+          />
+        </Section>
+      </AnchoredScrollView>
     </Screen>
   );
 }

@@ -1,8 +1,12 @@
 /**
  * Theme context: color scheme (system-following + manual override) × design
- * variant (A aesthetic / B high-visibility), both persisted. One hook:
+ * variant (A aesthetic / B high-visibility / office / kids), both persisted.
+ * One hook:
  *
- *   const { tokens } = useTheme();
+ *   const { tokens, reduceMotion } = useTheme();
+ *
+ * `reduceMotion` mirrors the OS accessibility setting (the app's
+ * `prefers-reduced-motion`): skins may animate only when it is false.
  */
 import {
   createContext,
@@ -13,10 +17,16 @@ import {
   useState,
   type PropsWithChildren,
 } from 'react';
-import { useColorScheme } from 'react-native';
+import { AccessibilityInfo, Platform, useColorScheme } from 'react-native';
 
 import { KV_KEYS, kvStore } from '../storage/kv-store';
-import { getTokens, type ColorSchemeName, type DesignVariant, type Tokens } from './tokens';
+import {
+  getTokens,
+  isDesignVariant,
+  type ColorSchemeName,
+  type DesignVariant,
+  type Tokens,
+} from './tokens';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -28,6 +38,8 @@ interface ThemeContextValue {
   setMode: (mode: ThemeMode) => void;
   variant: DesignVariant;
   setVariant: (variant: DesignVariant) => void;
+  /** OS "reduce motion" is on — skip transform/expand animations. */
+  reduceMotion: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -38,14 +50,21 @@ export function ThemeProvider({ children }: PropsWithChildren) {
   const deviceScheme = useColorScheme(); // re-renders on device theme change
   const [mode, setModeState] = useState<ThemeMode>('system');
   const [variant, setVariantState] = useState<DesignVariant>('a');
+  const [reduceMotion, setReduceMotion] = useState(false);
 
   useEffect(() => {
     void kvStore.getString(KV_KEYS.themeMode).then((stored) => {
       if (THEME_MODES.includes(stored as ThemeMode)) setModeState(stored as ThemeMode);
     });
     void kvStore.getString(KV_KEYS.designVariant).then((stored) => {
-      if (stored === 'a' || stored === 'b') setVariantState(stored);
+      if (isDesignVariant(stored)) setVariantState(stored);
     });
+  }, []);
+
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => subscription.remove();
   }, []);
 
   const setMode = useCallback((next: ThemeMode) => {
@@ -62,8 +81,16 @@ export function ThemeProvider({ children }: PropsWithChildren) {
   const scheme: ColorSchemeName = mode === 'system' ? (deviceScheme ?? 'light') : mode;
 
   const value = useMemo<ThemeContextValue>(
-    () => ({ tokens: getTokens(variant, scheme), scheme, mode, setMode, variant, setVariant }),
-    [scheme, mode, setMode, variant, setVariant],
+    () => ({
+      tokens: getTokens(variant, scheme, Platform.OS === 'android' ? 'android' : 'ios'),
+      scheme,
+      mode,
+      setMode,
+      variant,
+      setVariant,
+      reduceMotion,
+    }),
+    [scheme, mode, setMode, variant, setVariant, reduceMotion],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

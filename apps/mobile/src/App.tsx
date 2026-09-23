@@ -74,9 +74,20 @@ function AppShell({ forced426 }: { forced426: ForcedUpdate | null }) {
   });
 
   // React Navigation theme derived from the design tokens.
-  const navTheme: Theme = useMemo(
-    () => ({
+  const navTheme: Theme = useMemo(() => {
+    // Headers and tab labels follow the skin's font too (office/kids).
+    const family = tokens.type.fontFamily;
+    const fonts: Theme['fonts'] = family
+      ? {
+          regular: { ...DefaultTheme.fonts.regular, fontFamily: family },
+          medium: { ...DefaultTheme.fonts.medium, fontFamily: family },
+          bold: { ...DefaultTheme.fonts.bold, fontFamily: family },
+          heavy: { ...DefaultTheme.fonts.heavy, fontFamily: family },
+        }
+      : DefaultTheme.fonts;
+    return {
       ...DefaultTheme,
+      fonts,
       dark: scheme === 'dark',
       colors: {
         ...DefaultTheme.colors,
@@ -87,9 +98,8 @@ function AppShell({ forced426 }: { forced426: ForcedUpdate | null }) {
         border: tokens.colors.border,
         notification: tokens.colors.danger,
       },
-    }),
-    [scheme, tokens],
-  );
+    };
+  }, [scheme, tokens]);
 
   // ── 1. Forced update beats everything ─────────────────────────────────────
   const forced = forced426 ?? forcedByPolicy;

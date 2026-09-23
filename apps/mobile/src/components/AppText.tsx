@@ -35,6 +35,8 @@ export function AppText({
 }: AppTextProps) {
   const { tokens } = useTheme();
   const isHeadline = variant === 'title' || variant === 'heading';
+  const fontSize = tokens.type[variant];
+  const lineHeight = tokens.type.lineHeight;
   return (
     <Text
       testID={testID}
@@ -42,7 +44,12 @@ export function AppText({
       accessibilityRole={accessibilityRole ?? (isHeadline ? 'header' : undefined)}
       style={[
         {
-          fontSize: tokens.type[variant],
+          fontSize,
+          fontFamily: tokens.type.fontFamily,
+          // Web-ported skins pin CSS line-height (office 1.4, kids 1.6).
+          lineHeight: lineHeight
+            ? Math.round(fontSize * (isHeadline ? lineHeight.heading : lineHeight.body))
+            : undefined,
           color: color ?? (muted ? tokens.colors.textMuted : tokens.colors.text),
           fontWeight: bold || isHeadline ? tokens.type.emphasis : 'normal',
           textAlign: align,

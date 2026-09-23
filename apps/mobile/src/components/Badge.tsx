@@ -1,4 +1,5 @@
-/** Small status label (todo status, environment tag, …). */
+/** Small status label (todo status, environment tag, …). Pill-shaped, except
+ * in office where badges go square (`radius.pill` = 2). */
 import { View } from 'react-native';
 
 import { useTheme } from '../theme/ThemeProvider';
@@ -27,7 +28,7 @@ export function Badge({ label, tone = 'neutral', testID }: BadgeProps) {
         alignSelf: 'flex-start',
         paddingHorizontal: tokens.spacing.sm,
         paddingVertical: tokens.spacing.xs / 2,
-        borderRadius: tokens.radius.full,
+        borderRadius: tokens.radius.pill,
         borderWidth: tokens.borderWidth,
         borderColor: toneColor,
       }}

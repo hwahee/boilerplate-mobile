@@ -5,6 +5,11 @@
   "workspaces": [
     "apps/*"
   ],
+  "packageManager": "bun@1.4.0",
+  "engines": {
+    "bun": "1.4.0",
+    "node": "24.19.0"
+  },
   "scripts": {
     "dev": "bun --watch src/server/index.ts",
     "build": "bun run scripts/build.ts",

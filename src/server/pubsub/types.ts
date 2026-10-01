@@ -27,6 +27,10 @@ export const CHANNELS = {
   configChanged: 'config.changed',
   /** Emitted after a version-policy upsert; payload: { platform }. */
   versionPolicyChanged: 'version-policy.changed',
+  /** Emitted after a chat message is stored; payload: ChatMessage. */
+  chatMessages: 'chat.messages',
+  /** Emitted when a connection joins or leaves a chat room; payload: the change (chat-gateway.ts). */
+  chatPresence: 'chat.presence',
   /** Background job queue consumed by worker-role processes. */
   jobs: 'jobs',
 } as const;

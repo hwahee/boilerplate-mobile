@@ -6,6 +6,9 @@
 import { useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 
+import { hexColor, type HexColor } from '@shared/color';
+import type { PaletteSwatch } from '@shared/color/presets';
+
 import { Accordion } from '../components/Accordion';
 import { AnchoredScrollView } from '../components/AnchoredScrollView';
 import { AppText } from '../components/AppText';
@@ -16,6 +19,7 @@ import { Card } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
 import { ErrorState } from '../components/ErrorState';
 import { IconButton } from '../components/IconButton';
+import { Palette } from '../components/Palette';
 import { Screen } from '../components/Screen';
 import { Spinner } from '../components/Spinner';
 import { TextField } from '../components/TextField';
@@ -33,10 +37,26 @@ function Section({ name, title, children }: { name: string; title: string; child
   );
 }
 
+/** The palette's contrast check needs a concrete background; the sample below sits on white. */
+const SAMPLE_BACKGROUND = hexColor('#ffffff');
+
 export function DesignSystemScreen() {
   const { tokens } = useTheme();
   const { t } = useLocale();
   const [fieldValue, setFieldValue] = useState('');
+  const [brandColor, setBrandColor] = useState<HexColor>(() => hexColor('#6366f1'));
+  // Recent colors live here, not in the component — see docs/palette-design.md §5.3.
+  const [recentColors, setRecentColors] = useState<readonly PaletteSwatch[]>([]);
+
+  const pickColor = (next: HexColor) => {
+    setBrandColor(next);
+    setRecentColors((previous) =>
+      [{ value: next, name: next }, ...previous.filter((swatch) => swatch.value !== next)].slice(
+        0,
+        8,
+      ),
+    );
+  };
 
   // Cast: Object.entries needs an index signature to keep the value typed.
   const swatches = Object.entries(tokens.colors as unknown as Record<string, string>).filter(
@@ -127,6 +147,33 @@ export function DesignSystemScreen() {
             onChangeText={() => undefined}
             error="Something is wrong here"
           />
+        </Section>
+
+        <Section name="color-input" title={t('designSystem.colorInput')}>
+          <Palette
+            label="Brand color"
+            value={brandColor}
+            onChange={pickColor}
+            recent={recentColors}
+            contrastAgainst={SAMPLE_BACKGROUND}
+            testID="ds.palette"
+          />
+          <View
+            style={{
+              padding: tokens.spacing.sm,
+              backgroundColor: SAMPLE_BACKGROUND,
+              borderWidth: tokens.borderWidth,
+              borderColor: tokens.colors.border,
+              borderRadius: tokens.radius.control,
+            }}
+          >
+            <AppText color={brandColor}>Sample text on white — {brandColor}</AppText>
+          </View>
+          <AppText variant="caption" muted>
+            Presets, a hex field and — on iOS — the system picker (with opacity: alpha is part of
+            the value). Press and hold a swatch to see the exact string it will return; release to
+            pick it, slide off to cancel.
+          </AppText>
         </Section>
 
         <Section name="feedback" title={t('designSystem.feedback')}>

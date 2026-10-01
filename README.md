@@ -194,7 +194,9 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
 - **디자인 시스템**: 토큰 3계층(원시 → 디자인 치수 → 시맨틱 컬러)으로 구성되며
   `/design-system` 페이지에서 전부 확인할 수 있습니다. `<html>`의 `data-theme`
   (light/dark)와 `data-design`(A=심미성/B=시인성) 속성만으로 전환됩니다 — 헤더의 토글
-  버튼으로 즉시 스위칭됩니다. 아이콘은 lucide-react.
+  버튼으로 즉시 스위칭됩니다. 아이콘은 lucide-react. 색상 입력(`Palette`)은 Popover API
+  top layer에 떠서 어떤 `overflow` 조상 안에서도 잘리지 않으며, 값은 알파를 포함한 정규화
+  hex 문자열입니다 — 설계 근거는 **[docs/palette-design.md](docs/palette-design.md)** 참고.
 - **UI 자동화 / 접근성**: 모든 인터랙티브 컴포넌트는 `testId`가 **필수 prop**이며 값은
   `src/client/testing/testids.ts` 레지스트리에서만 나옵니다. WAI-ARIA(라벨, live region,
   `aria-busy`, `aria-current`, skip link, 네이티브 컨트롤 우선)를 준수합니다.
@@ -247,6 +249,10 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
   이식한 것이며, 토큰 값이 웹 `tokens.css`와 같은지는 테스트가 CSS를 직접 파싱해 검증합니다.
   kids는 모바일에서 베타입니다. 웹 `Accordion`도 같은 계약으로 이식했습니다 —
   **[docs/design-skins-mobile.md](docs/design-skins-mobile.md)**.
+- **색상 입력(Palette)**: 웹과 같은 값 계약과 같은 기본 32색(`@shared/color/presets`)을
+  씁니다. 앱에서는 바텀시트로 열리고, 스와치를 누르고 있으면 반환될 값이 말풍선으로
+  보입니다. iOS에서는 시스템 색 피커도 쓸 수 있습니다 —
+  **[docs/palette-mobile.md](docs/palette-mobile.md)**.
 - **UI 자동화**: testID 레지스트리 + Maestro 플로우 —
   **[docs/ui-automation-mobile.md](docs/ui-automation-mobile.md)**.
 - **음성 어시스턴트**(`src/shared/voice`, `apps/mobile/src/voice`, `capsule/`):

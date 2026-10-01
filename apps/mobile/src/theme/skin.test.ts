@@ -7,6 +7,7 @@ import {
   cardSkin,
   fieldSkin,
   mixSrgb,
+  paletteSkin,
   touchSlop,
   withAlpha,
 } from './skin';
@@ -120,5 +121,39 @@ describe('kids', () => {
 
   test('cards carry the hard drop shadow', () => {
     expect(cardSkin(tokens)).toEqual({ boxShadow: tokens.surfaceShadow! });
+  });
+});
+
+describe('palette', () => {
+  test('A/B swatches are touch-sized with the web selection ring', () => {
+    const tokens = getTokens('a', 'light');
+    const skin = paletteSkin(tokens);
+    expect(skin.swatchSize).toBe(tokens.minTouchTarget);
+    expect(skin.swatchHitSlop).toBeUndefined();
+    expect(skin.selectedRing).toContain(tokens.colors.focus);
+    expect(skin.pressPop).toBe(false);
+  });
+
+  test('office: dense square grid, inset selection, yellow tooltip, sunken trigger', () => {
+    const tokens = getTokens('office', 'light');
+    const skin = paletteSkin(tokens);
+    expect(skin.swatchSize).toBe(21); // --control-height (28) * 0.75
+    expect(skin.swatchRadius).toBe(0);
+    expect(skin.gridGap).toBe(2);
+    expect(skin.selectedRing).toBeNull();
+    expect(skin.selectedInset).toEqual({ borderWidth: 2, borderColor: tokens.colors.primary });
+    expect(skin.callout.backgroundColor).toBe('#ffffe1');
+    expect(skin.trigger).toMatchObject(bevelBorder(tokens.bevel!, 'sunken'));
+    expect(skin.sheet).toEqual(bevelBorder(tokens.bevel!, 'raised'));
+  });
+
+  test('kids: round candy swatches that pop, touch area topped up without overlap', () => {
+    const tokens = getTokens('kids', 'light');
+    const skin = paletteSkin(tokens);
+    expect(skin.swatchSize).toBe(36);
+    expect(skin.swatchRadius).toBe(tokens.radius.full);
+    expect(skin.swatchHitSlop).toBeLessThanOrEqual(skin.gridGap / 2);
+    expect(skin.triggerWeight).toBe('800');
+    expect(skin.pressPop).toBe(true);
   });
 });

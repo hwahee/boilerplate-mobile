@@ -86,6 +86,12 @@ export const en = {
   'settings.checkUpdate': 'Check for updates',
   'settings.upToDate': 'You are on the latest version.',
 
+  'palette.recent': 'Recently used',
+  'palette.hexLabel': 'Hex value',
+  'palette.hexInvalid': 'Use a color like #5b5bd6 or #5b5bd680.',
+  'palette.customColor': 'More colors (system picker)',
+  'palette.contrastWarning': 'Contrast {ratio}:1 — below the {minimum}:1 minimum.',
+
   'designSystem.title': 'Design System',
   'designSystem.description':
     'Every token and component in one place. Toggle theme, design variant and language in Settings.',
@@ -95,6 +101,7 @@ export const en = {
   'designSystem.formFields': 'Form fields',
   'designSystem.feedback': 'Feedback',
   'designSystem.dataDisplay': 'Data display',
+  'designSystem.colorInput': 'Color input (palette)',
   'designSystem.disclosure': 'Disclosure (accordion)',
 
   'error.validation': 'The request contains invalid data.',

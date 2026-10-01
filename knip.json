@@ -14,7 +14,7 @@
     "apps/mobile": {
       "entry": ["src/**/*.test.ts", "src/components/overlay/declarative.tsx"],
       "project": ["src/**/*.{ts,tsx}"],
-      "ignoreDependencies": ["babel-preset-expo", "zod"]
+      "ignoreDependencies": ["zod"]
     }
   },
   "ignoreBinaries": ["index.js"]

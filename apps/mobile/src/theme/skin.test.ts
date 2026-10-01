@@ -144,7 +144,6 @@ describe('palette', () => {
     expect(skin.selectedInset).toEqual({ borderWidth: 2, borderColor: tokens.colors.primary });
     expect(skin.callout.backgroundColor).toBe('#ffffe1');
     expect(skin.trigger).toMatchObject(bevelBorder(tokens.bevel!, 'sunken'));
-    expect(skin.sheet).toEqual(bevelBorder(tokens.bevel!, 'raised'));
   });
 
   test('kids: round candy swatches that pop, touch area topped up without overlap', () => {

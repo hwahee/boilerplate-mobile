@@ -24,6 +24,14 @@ import prettierConfig from 'eslint-config-prettier';
  *    opt-in: importing them fails until the caller disables the rule and says
  *    why (docs/overlay-design.md §5.1).
  */
+/** The app may not import server or web-client runtime code (types are fine). */
+const MOBILE_SERVER_BOUNDARY = {
+  group: ['@server/*', '**/src/server/**', '@client/*', '**/src/client/**'],
+  allowTypeImports: true,
+  message:
+    'The mobile app must not import server or web-client code. Move shared code to src/shared. (Type-only imports of server types are allowed.)',
+};
+
 export default tseslint.config(
   {
     ignores: [
@@ -103,23 +111,37 @@ export default tseslint.config(
     },
   },
   // Boundary: the mobile app may not import server runtime code either
-  // (types are allowed, exactly like the web client).
+  // (types are allowed, exactly like the web client). Its overlays follow the
+  // web's rule: internals closed, the declarative door opt-in with a reason
+  // (docs/overlay-mobile.md). The overlay module itself gets only the first.
   {
     files: ['apps/mobile/**/*.{ts,tsx}'],
+    ignores: ['apps/mobile/src/components/overlay/**'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
         {
           patterns: [
+            MOBILE_SERVER_BOUNDARY,
             {
-              group: ['@server/*', '**/src/server/**', '@client/*', '**/src/client/**'],
-              allowTypeImports: true,
+              group: ['**/overlay/internal/*'],
               message:
-                'The mobile app must not import server or web-client code. Move shared code to src/shared. (Type-only imports of server types are allowed.)',
+                'Overlay internals (the host, the stack, the panel) belong to the overlay module. Use useOverlay() — see docs/overlay-mobile.md.',
+            },
+            {
+              group: ['**/overlay/declarative'],
+              message:
+                'Overlays default to the imperative door: useOverlay(). The declarative components exist for two cases on the app - a body that must keep re-rendering from live state, and always-visible (inline) layout. If one applies, disable this rule on the import line and write which: // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- <reason>',
             },
           ],
         },
       ],
+    },
+  },
+  {
+    files: ['apps/mobile/src/components/overlay/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': ['error', { patterns: [MOBILE_SERVER_BOUNDARY] }],
     },
   },
   // Boundary: shared may not import from client nor server at all.

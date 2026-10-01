@@ -136,6 +136,27 @@ describe('kids-only tokens', () => {
   });
 });
 
+describe('overlay tokens match the web :root', () => {
+  test('geometry', () => {
+    const { overlay } = getTokens('a', 'light');
+    expect(overlay.widthSm).toBe(points(resolve(root, 'overlay-width-sm')));
+    expect(overlay.widthMd).toBe(points(resolve(root, 'overlay-width-md')));
+    expect(overlay.widthLg).toBe(points(resolve(root, 'overlay-width-lg')));
+    expect(overlay.sidebarWidth).toBe(points(resolve(root, 'sidebar-width')));
+    expect(overlay.scrollBleed).toBe(points(resolve(root, 'scroll-bleed')));
+    expect(`${overlay.sheetMaxHeight * 100}dvh`).toBe(resolve(root, 'sheet-max-height'));
+  });
+
+  test.each(['office', 'kids'] as const)('%s scrim', (variant) => {
+    const sizing = block(`[data-design='${variant}']`);
+    // rgb(0 0 0 / 25%) ↔ rgba(0, 0, 0, 0.25)
+    const alpha = /\/\s*([\d.]+)%/.exec(resolve(sizing, 'overlay-scrim'))?.[1];
+    expect(getTokens(variant, 'light').colors.overlay).toBe(
+      `rgba(0, 0, 0, ${Number(alpha) / 100})`,
+    );
+  });
+});
+
 describe('design variants', () => {
   test('A and B keep their mobile values (no web port)', () => {
     const a = getTokens('a', 'light');

@@ -11,6 +11,7 @@ import { Animated, TextInput, View, type TextInputProps } from 'react-native';
 
 import { useMotionProgress } from '../theme/motion';
 import { fieldSkin } from '../theme/skin';
+import { useInsideScrollBox } from './ScrollBox';
 import { useTheme } from '../theme/ThemeProvider';
 import { AppText } from './AppText';
 
@@ -53,7 +54,9 @@ export function TextField({
   const hasError = !!error;
   const [focused, setFocused] = useState(false);
   const pop = useMotionProgress();
-  const pops = tokens.motion.focusScale !== 1 && !reduceMotion;
+  // Scale-up is size-proportional growth: off inside a ScrollBox (see there).
+  const insideScrollBox = useInsideScrollBox();
+  const pops = tokens.motion.focusScale !== 1 && !reduceMotion && !insideScrollBox;
 
   const onFocus = () => {
     setFocused(true);

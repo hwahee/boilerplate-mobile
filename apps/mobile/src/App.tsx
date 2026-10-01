@@ -33,6 +33,7 @@ import { flushPendingVoiceUrl } from './voice/handlers';
 import { useVoiceLinks } from './voice/useVoiceLinks';
 import { createAppQueryClient, PERSIST_MAX_AGE_MS, queryPersister } from './offline/persist';
 import { MaintenanceScreen } from './screens/MaintenanceScreen';
+import { OverlayProvider } from './components/overlay';
 import { ThemeProvider, useTheme } from './theme/ThemeProvider';
 import { evaluateUpdatePolicy } from './version/policy';
 import { ForceUpdateScreen, OptionalUpdatePrompt } from './version/UpdateGate';
@@ -138,9 +139,10 @@ function AppShell({ forced426 }: { forced426: ForcedUpdate | null }) {
       >
         <RootNavigator />
       </NavigationContainer>
-      {boot.state.optionalUpdate && !promptDismissed ? (
+      {boot.state.optionalUpdate ? (
         <OptionalUpdatePrompt
           decision={boot.state.optionalUpdate}
+          open={!promptDismissed}
           onDismiss={() => setPromptDismissed(true)}
         />
       ) : null}
@@ -174,7 +176,11 @@ export function App() {
                 client={queryClient}
                 persistOptions={{ persister: queryPersister, maxAge: PERSIST_MAX_AGE_MS }}
               >
-                <AppShell forced426={forced426} />
+                {/* Overlays render here, at the app root: they see the contexts
+                    above this point and nothing below (docs/overlay-mobile.md). */}
+                <OverlayProvider>
+                  <AppShell forced426={forced426} />
+                </OverlayProvider>
               </PersistQueryClientProvider>
             </ConfigProvider>
           </ApiProvider>

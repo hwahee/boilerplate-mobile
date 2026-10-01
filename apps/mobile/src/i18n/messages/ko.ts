@@ -91,6 +91,7 @@ export const ko: Record<MessageKey, string> = {
   'designSystem.feedback': '피드백',
   'designSystem.dataDisplay': '데이터 표시',
   'designSystem.colorInput': '색상 입력 (팔레트)',
+  'designSystem.overlays': '오버레이 (모달 · 시트 · 사이드바)',
   'designSystem.disclosure': '디스클로저 (아코디언)',
 
   'error.validation': '요청에 잘못된 데이터가 포함되어 있습니다.',

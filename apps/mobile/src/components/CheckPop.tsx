@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { Animated, Easing } from 'react-native';
 
 import { useTheme } from '../theme/ThemeProvider';
+import { useInsideScrollBox } from './ScrollBox';
 
 const POP_DURATION_MS = 400;
 
@@ -15,7 +16,9 @@ export function CheckPop({ checked, children }: PropsWithChildren<{ checked: boo
   const { tokens, reduceMotion } = useTheme();
   const [pop] = useState(() => new Animated.Value(1));
   const wasChecked = useRef(checked);
-  const enabled = tokens.motion.checkPop && !reduceMotion;
+  // The pop overshoots to ×1.5 — size-proportional growth, off inside a ScrollBox.
+  const insideScrollBox = useInsideScrollBox();
+  const enabled = tokens.motion.checkPop && !reduceMotion && !insideScrollBox;
   const { easing } = tokens.motion;
 
   useEffect(() => {

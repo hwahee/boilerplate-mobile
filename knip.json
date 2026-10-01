@@ -5,13 +5,14 @@
       "entry": [
         "src/server/index.ts",
         "src/client/main.tsx",
+        "src/client/ui/overlay/declarative.ts",
         "src/**/*.test.{ts,tsx}",
         "scripts/*.ts"
       ],
       "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts"]
     },
     "apps/mobile": {
-      "entry": ["src/**/*.test.ts"],
+      "entry": ["src/**/*.test.ts", "src/components/overlay/declarative.tsx"],
       "project": ["src/**/*.{ts,tsx}"],
       "ignoreDependencies": ["babel-preset-expo", "zod"]
     }

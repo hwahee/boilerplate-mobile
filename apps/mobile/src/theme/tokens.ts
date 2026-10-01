@@ -99,6 +99,28 @@ export interface BevelTokens {
   faceBottom: string;
 }
 
+/**
+ * Overlay geometry — the web's :root overlay tokens (same for every skin;
+ * skins change overlays only through colors/radius/motion). See
+ * docs/overlay-mobile.md.
+ * @public part of the Tokens contract
+ */
+export interface OverlayTokens {
+  /** Modal max widths (--overlay-width-sm/md/lg). */
+  widthSm: number;
+  widthMd: number;
+  widthLg: number;
+  /** Bottom sheet max height as a fraction of the window (--sheet-max-height 85dvh). */
+  sheetMaxHeight: number;
+  /** Modal sidebar width (--sidebar-width). */
+  sidebarWidth: number;
+  /**
+   * Room a scroll box reserves so a child's focus ring / shadow is not sliced
+   * at the scroll edge (--scroll-bleed). See components/ScrollBox.tsx.
+   */
+  scrollBleed: number;
+}
+
 export interface Tokens {
   /** Which skin these tokens belong to — lets skin rules scope themselves. */
   variant: DesignVariant;
@@ -136,6 +158,7 @@ export interface Tokens {
   motion: MotionTokens;
   /** Office bevel colors; null for every other skin. */
   bevel: BevelTokens | null;
+  overlay: OverlayTokens;
 }
 
 /** Platform the tokens are resolved for (fonts differ per OS). */
@@ -292,6 +315,16 @@ const KIDS_COLORS: Record<ColorSchemeName, ColorTokens> = {
 
 const SPACING = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 } as const;
 
+/** Verbatim from the web :root (1rem = 16pt). */
+const OVERLAY: OverlayTokens = {
+  widthSm: 352, // 22rem
+  widthMd: 544, // 34rem
+  widthLg: 736, // 46rem
+  sheetMaxHeight: 0.85, // 85dvh
+  sidebarWidth: 320, // 20rem
+  scrollBleed: 12, // --space-3
+};
+
 /** Web base motion: --duration-fast 150ms, --duration-expand 240ms, `ease`. */
 const CALM_MOTION: MotionTokens = {
   durationFast: 150,
@@ -342,6 +375,7 @@ export function getTokens(
         surfaceShadow: null,
         motion: CALM_MOTION,
         bevel: null,
+        overlay: OVERLAY,
       };
     case 'office':
       return {
@@ -371,6 +405,7 @@ export function getTokens(
         // Restrained: state changes are instant — no easing, no motion.
         motion: { ...CALM_MOTION, durationFast: 0, durationExpand: 0 },
         bevel: OFFICE_BEVEL[scheme],
+        overlay: OVERLAY,
       };
     case 'kids':
       return {
@@ -405,6 +440,7 @@ export function getTokens(
           checkPop: true,
         },
         bevel: null,
+        overlay: OVERLAY,
       };
     case 'a':
       return {
@@ -429,6 +465,7 @@ export function getTokens(
         surfaceShadow: null,
         motion: CALM_MOTION,
         bevel: null,
+        overlay: OVERLAY,
       };
   }
 }

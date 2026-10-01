@@ -70,9 +70,6 @@ capsule/             # Bixby Capsule — 삼성 클라우드에서 도는 별도
 이 저장소에서는 **Expo CLI와 Metro(`bun run dev:mobile`, `expo export`)도 Node로 실행**되므로
 앱 개발에서도 이 Node 버전을 씁니다. 모바일 네이티브 빌드 워크플로(`native-build.yml`)도
 CI와 같은 방식으로 `package.json`에서 버전을 읽습니다.
-이 저장소에서는 **Expo CLI와 Metro(`bun run dev:mobile`, `expo export`)도 Node로 실행**되므로
-앱 개발에서도 이 Node 버전을 씁니다. 모바일 네이티브 빌드 워크플로(`native-build.yml`)도
-CI와 같은 방식으로 `package.json`에서 버전을 읽습니다.
 
 ## 시작하기
 

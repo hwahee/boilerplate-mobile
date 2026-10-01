@@ -44,6 +44,9 @@
   함수·값, context로 내려가는 함수, `.ts` 훅이 돌려주는 함수·객체.
 - 컴포넌트 안에서 논리 할당(`||=`, `??=`, `&&=`)을 쓰지 않습니다. 컴파일러가 그 컴포넌트를 통째로
   건너뜁니다(ESLint가 `.tsx`에서 막음).
+- **이 절은 웹 클라이언트(`src/client`)에만 해당합니다.** 앱(`apps/mobile`)은 Metro로 빌드되어 컴파일러가
+  적용되지 않으므로, 앱 `.tsx`에서는 필요한 memo를 지금처럼 직접 씁니다. 앱에 컴파일러를 켤지는 사람이
+  정합니다([upgrade-guides/2026-10-mobile-upstream-sync.md](docs/upgrade-guides/2026-10-mobile-upstream-sync.md) 3절).
 
 ## 인증 작업에 답하는 형식
 

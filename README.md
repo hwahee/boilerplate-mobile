@@ -331,9 +331,10 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
   손대지 않음. 러너가 숫자 접두사로 적용 여부를 판단하므로 업스트림 번호와 겹치지 않게 1000번대를 씀),
   커서 페이지네이션은 `@shared/api/cursor-pagination`(기존 `pagination`은 유지),
   앱 UI 문자열은 `apps/mobile/src/i18n/messages`(공통 카탈로그는 서버가 쓰는 에러 메시지만).
-  - 이 파일은 예전에 `0002_mobile.sql`이었습니다. 그때 만든 로컬 DB에는 버전 `0002`가 이미
-    기록되어 있어서, 업스트림의 `0002_users`를 건너뛰고 `1001_mobile`은 테이블 중복으로 실패합니다.
-    `docker compose down -v && bun run db:setup`으로 한 번 다시 만드세요.
+  - 이 파일은 예전에 `0002_mobile.sql`이었습니다. 그때 만든 DB에서는 마이그레이션 러너가 번호
+    `0002`의 기록 이름이 다르다며 멈춥니다. 기록을 옮기는 SQL 한 줄로 해결되며(데이터 유지),
+    절차는 [docs/upgrade-guides/2026-10-mobile-upstream-sync.md](docs/upgrade-guides/2026-10-mobile-upstream-sync.md)
+    4.1에 있습니다.
 - **기존 계약 불변**: 웹 클라이언트가 쓰는 `Page<T>` 응답, `X-App-Version` 스큐 검사,
   기존 라우트/테스트는 그대로입니다. 앱용 동작은 앱만 보내는 신호(`X-Platform`, `limit`)로
   분기합니다.

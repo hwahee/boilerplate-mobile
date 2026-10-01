@@ -5,6 +5,7 @@
       "entry": [
         "src/server/index.ts",
         "src/client/main.tsx",
+        "src/client/ui/overlay/declarative.ts",
         "src/**/*.test.{ts,tsx}",
         "scripts/*.ts"
       ],

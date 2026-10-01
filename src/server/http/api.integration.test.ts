@@ -11,7 +11,7 @@ import { VERSION_HEADER } from '@shared/api/version';
 import type { Todo } from '@shared/domain/todo';
 import type { User } from '@shared/domain/user';
 
-import { bridgePubSubToWebSocket, buildApp } from '../app';
+import { bridgePubSubToWebSocket, buildApp, type SocketData } from '../app';
 import { loadServerConfig } from '../config';
 import { createContainer, type Container } from '../container';
 import { silentLogger } from '../lib/log';
@@ -26,7 +26,7 @@ const VOICE_TOKEN = 'integration-test-voice-token';
 
 let container: Container;
 let state: AppState;
-let server: Bun.Server<undefined>;
+let server: Bun.Server<SocketData>;
 let baseUrl: string;
 let stopBridge: () => Promise<void>;
 let stopWorker: () => Promise<void>;

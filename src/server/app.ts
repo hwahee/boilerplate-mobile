@@ -13,9 +13,11 @@ import {
   adminPushBroadcastRoute,
   adminVersionPolicyRoute,
 } from './routes/admin';
+import type { ChatSocketData } from './realtime/chat-gateway';
 import { appConfigRoute } from './routes/app-config';
 import { apiFallbackRoutes } from './routes/api-fallback';
 import { authRoutes } from './routes/auth';
+import { chatMessageRoutes } from './routes/chat';
 import { livenessRoute, readinessRoute, type AppState } from './routes/health';
 import { pushTokenRoutes, pushTokenUnregisterRoute } from './routes/push-tokens';
 import { todoCollectionRoutes, todoItemRoutes } from './routes/todos';
@@ -26,6 +28,15 @@ import { voiceIntentRoute } from './routes/voice';
 const WS_TOPIC_TODOS = 'ws.todos';
 /** Server-side WebSocket topic for remote-config change events (mobile app). */
 const WS_TOPIC_CONFIG = 'ws.config';
+
+/** What each socket carries — which endpoint it was opened on decides the rest. */
+export type SocketData = { kind: 'todos' } | ChatSocketData;
+
+function isChatSocket(
+  ws: Bun.ServerWebSocket<SocketData>,
+): ws is Bun.ServerWebSocket<ChatSocketData> {
+  return ws.data.kind === 'chat';
+}
 
 export function buildApp(container: Container, state: AppState) {
   const deps: HttpDeps = {
@@ -53,26 +64,44 @@ export function buildApp(container: Container, state: AppState) {
       '/api/admin/version-policy/:platform': adminVersionPolicyRoute(container, deps),
       '/api/admin/app-config/:key': adminAppConfigRoute(container, deps),
       '/api/admin/push/broadcast': adminPushBroadcastRoute(container, deps),
+      '/api/chat/rooms/:roomId/messages': chatMessageRoutes(container, deps),
       ...(container.config.authDriver === 'dev' ? authRoutes(container, deps) : {}),
       /** Unknown API paths/methods → JSON 404, never the SPA's index.html. */
       '/api/*': apiFallbackRoutes(deps),
-      /** WebSocket endpoint: pushes `{action, todoId}` on every todo change. */
-      '/ws': (req: Bun.BunRequest<'/ws'>, server: Bun.Server<undefined>) =>
-        server.upgrade(req)
+      /**
+       * WebSocket endpoint: pushes `{action, todoId}` on every todo change and
+       * `{type: 'config.changed', …}` on remote-config changes (the app).
+       */
+      '/ws': (req: Bun.BunRequest<'/ws'>, server: Bun.Server<SocketData>) =>
+        server.upgrade(req, { data: { kind: 'todos' } })
           ? undefined
           : new Response('WebSocket upgrade required', { status: 426 }),
+      /** Chat WebSocket endpoint — see src/server/realtime/chat-gateway.ts. */
+      '/ws/chat': (req: Bun.BunRequest<'/ws/chat'>, server: Bun.Server<SocketData>) => {
+        const data = container.chatGateway().handshake(req);
+        if (data instanceof Response) return data;
+        return server.upgrade(req, { data })
+          ? undefined
+          : new Response('WebSocket upgrade required', { status: 426 });
+      },
     },
 
     websocket: {
-      open(ws: Bun.ServerWebSocket<undefined>) {
-        // Every socket joins both topics; bridgePubSubToWebSocket relays the
-        // pub/sub bus into them, so this works across instances with the
-        // redis driver.
+      open(ws: Bun.ServerWebSocket<SocketData>) {
+        // Every /ws socket (browser client and app alike) joins both topics;
+        // bridgePubSubToWebSocket relays the pub/sub bus into them, so this
+        // works across instances with the redis driver. Chat sockets join
+        // rooms by asking (see the chat gateway).
+        if (ws.data.kind !== 'todos') return;
         ws.subscribe(WS_TOPIC_TODOS);
         ws.subscribe(WS_TOPIC_CONFIG);
       },
-      message() {
-        // Inbound messages are not part of the protocol (yet).
+      message(ws: Bun.ServerWebSocket<SocketData>, message: string | Buffer) {
+        // Inbound messages are part of the chat protocol only.
+        if (isChatSocket(ws)) void container.chatGateway().message(ws, message);
+      },
+      close(ws: Bun.ServerWebSocket<SocketData>) {
+        if (isChatSocket(ws)) void container.chatGateway().close(ws);
       },
     },
 
@@ -91,7 +120,7 @@ export function buildApp(container: Container, state: AppState) {
  * the app can tell the two streams apart on one socket.
  */
 export async function bridgePubSubToWebSocket(
-  server: Bun.Server<undefined>,
+  server: Bun.Server<SocketData>,
   container: Container,
 ): Promise<() => Promise<void>> {
   const pubsub = container.pubsub();

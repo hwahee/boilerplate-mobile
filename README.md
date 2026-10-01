@@ -21,20 +21,25 @@ src/
 │                    #   todo / version-policy / app-config / push-token / platform
 ├── server/          # Bun server (API + 클라이언트 서빙 + 워커)
 │   ├── http/        # 라우트 공통 미들웨어 (CORS, 버전, 426 게이트, 에러, locale)
-│   ├── routes/      # 엔드포인트 정의 (todos / version-policy / app-config / push / admin)
+│   ├── auth/        # 요청 신원 — AUTH_DRIVER별로 "누가 호출했나"를 읽는 유일한 자리
+│   ├── routes/      # 엔드포인트 정의 (todos / auth / version-policy / app-config / push / admin)
 │   ├── services/    # 비즈니스 로직 (트랜잭션 경계가 여기서 드러남)
 │   ├── repositories/# 영속성 계약 + postgres/in-memory 구현
 │   ├── push/        # 푸시 발송 파사드 (dry-run / expo 드라이버)
 │   ├── db/          # Bun 내장 SQL 드라이버, 마이그레이션 러너
 │   ├── pubsub/      # 인스턴스 간 통신 (memory/redis 드라이버)
+│   ├── presence/    # 누가 어디에 접속해 있나 (memory/redis 드라이버, 채팅 접속자 목록)
+│   ├── realtime/    # 채팅 WebSocket 게이트웨이 (/ws/chat)
 │   └── container.ts # 컴포지션 루트 — 프로세스당 싱글톤 관리
 └── client/          # React SPA
     ├── api/         # ★ 모든 API가 endpoints.ts 한 곳에 문서화되어 모임
+    ├── auth/        # 헤더의 로그인/로그아웃 컨트롤
+    ├── chat/        # 채팅 코어 — 소켓·방 상태·useChatRoomState/Actions (UI 없음)
     ├── ui/          # 디자인 시스템 컴포넌트
     ├── styles/      # 디자인 토큰 (라이트/다크 × 디자인 A/B)
     ├── theme/ i18n/ # 테마·로케일 컨텍스트
     ├── testing/     # data-testid 레지스트리 (docs/ui-automation.md 참고)
-    └── pages/       # Todos(데모), Design System, NotFound
+    └── pages/       # Home(Todos + 채팅), Design System, NotFound
 
 apps/
 └── mobile/          # Expo(React Native) 앱 — iOS/Android
@@ -57,19 +62,16 @@ capsule/             # Bixby Capsule — 삼성 클라우드에서 도는 별도
 
 | 런타임 | 버전        |
 | ------ | ----------- |
-| Bun    | **1.4.0**   |
+| Bun    | **1.4.2**   |
 | Node   | **24.19.0** |
 
-버전은 `package.json` 한 곳에만 적혀 있습니다 — `packageManager`(`bun@1.4.0`)와
+버전은 `package.json` 한 곳에만 적혀 있습니다 — `packageManager`(`bun@1.4.2`)와
 `engines`(`bun`/`node`). CI는 이 필드를 그대로 읽고(`setup-bun`은 `packageManager`,
-`setup-node`는 `engines.node`), Docker 이미지도 같은 버전(`oven/bun:1.4.0`)을 씁니다.
+`setup-node`는 `engines.node`), Docker 이미지도 같은 버전(`oven/bun:1.4.2`)을 씁니다.
 버전을 올릴 때는 `package.json`과 `Dockerfile`만 고치면 됩니다.
 
 애플리케이션은 Bun으로 실행·빌드·테스트합니다. Node는 Bun 밖에서 도는 에디터
 플러그인·툴링(ESLint/TypeScript 언어 서버 등)이 쓰는 런타임이라 함께 고정합니다.
-이 저장소에서는 **Expo CLI와 Metro(`bun run dev:mobile`, `expo export`)도 Node로 실행**되므로
-앱 개발에서도 이 Node 버전을 씁니다. 모바일 네이티브 빌드 워크플로(`native-build.yml`)도
-CI와 같은 방식으로 `package.json`에서 버전을 읽습니다.
 이 저장소에서는 **Expo CLI와 Metro(`bun run dev:mobile`, `expo export`)도 Node로 실행**되므로
 앱 개발에서도 이 Node 버전을 씁니다. 모바일 네이티브 빌드 워크플로(`native-build.yml`)도
 CI와 같은 방식으로 `package.json`에서 버전을 읽습니다.
@@ -99,6 +101,8 @@ DB 없이 바로 실행하려면 `.env`에서 `DB_DRIVER=memory`로 바꾸면 �
 | `bun run start`            | 빌드 산출물 실행                                                           |
 | `bun run db:*`             | `db:up` / `db:migrate` / `db:seed` / `db:setup`                            |
 | `bun run typecheck:mobile` | 앱만 타입체크 (앱은 React Native 타입 환경이라 tsconfig가 분리됨)          |
+| `bun run chat:load`        | 채팅 부하 테스트: 한 방에 N명 입장 + 메시지 전송 (`[인원] [메시지 수]`)    |
+| `bun run compiler:report`  | React Compiler가 컴파일하지 못한 컴포넌트·훅 목록 (`--all`: 전부)          |
 
 ## 아키텍처 결정
 
@@ -165,7 +169,7 @@ DB 없이 바로 실행하려면 `.env`에서 `DB_DRIVER=memory`로 바꾸면 �
   싱글톤(lazy + memoized)입니다. 새로 싱글톤이 필요하면 같은 방식으로 등록하면 됩니다.
 - **WebSocket**: `/ws`로 todo 변경 이벤트와 원격 설정 변경(`{type:'config.changed'}`)을
   push합니다. 브리지(`bridgePubSubToWebSocket`)가 pub/sub을 경유하므로 redis 드라이버에서는
-  다른 인스턴스에 붙은 소켓에도 팬아웃됩니다.
+  다른 인스턴스에 붙은 소켓에도 팬아웃됩니다. 채팅은 별도 소켓 `/ws/chat`을 씁니다(아래 [채팅](#채팅)).
 
 ### Graceful shutdown & 롤링 배포 버전 스큐
 
@@ -195,6 +199,92 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
 허용 origin은 `CORS_ORIGINS` 환경 변수(콤마 구분)로만 제어합니다. 와일드카드 없음,
 암묵적 허용 없음 (`src/server/http/cors.ts`).
 
+### 인증 (회원)
+
+확정된 전제는 [CLAUDE.md](CLAUDE.md)에 있습니다: 비밀번호를 다루지 않고, 개발 단계는 아이디만으로
+로그인하며, 실제 인증은 나중에 구글 같은 외부 로그인에 위임합니다.
+
+- **드라이버 교체**: `AUTH_DRIVER=none|dev` (미설정 시 `none`, `.env.example`은 `dev`).
+  - `none` — 로그인 없음. `/api/auth/*`가 마운트되지 않아 JSON 404이고, 헤더 컨트롤도 숨겨집니다.
+  - `dev` — 아이디만으로 로그인. **처음 로그인한 아이디가 곧 가입**입니다(`users` 행 + 감사 로그).
+    아이디를 알면 누구나 그 계정으로 들어가므로 `APP_ENV=production`에서는 부팅을 거부합니다.
+  - 외부 로그인은 드라이버 하나를 더하는 것으로 붙입니다 — 쿠키에 무엇을 담고 어떻게 검증하는지는
+    `src/server/auth/session.ts` 한 곳에만 있습니다.
+- **API**: `POST /api/auth/dev-login {userId}` → `User` + 세션 쿠키, `GET /api/auth/me` →
+  `User | 401`, `POST /api/auth/logout` → 204. 상세는 `src/client/api/endpoints.ts`의 `authApi`.
+- **신원 전달**: 라우트는 `ctx.caller`(`src/server/http/context.ts`)만 읽습니다 — `member`(로그인),
+  `guest`(로그인 기능은 있지만 로그인 안 함), `anyone`(`none` — 구분 없음). 클라이언트의
+  `useCaller()`가 같은 셋(+ 로딩 중 `unknown`)을 돌려줍니다.
+- **게스트가 할 수 있는 일**: **접속을 끊은 뒤에도 의미가 남는 행동은 회원만**, 접속해 있는 동안에만
+  의미가 있는 행동(예: 게임 한 판의 점수)은 게스트도 합니다. 조회는 게스트에게도 열려 있습니다.
+  회원 전용 행동은 핸들러 첫 줄의 `requireMember(ctx.caller)`로 선언하며, 게스트면 로컬라이즈된
+  401 `UNAUTHORIZED`가 됩니다. Todos는 저장되는 데이터이므로 생성·수정·삭제가 회원 전용이고,
+  화면도 게스트에게는 쓰기 UI 대신 안내를 보여 줍니다. 게스트 상태는 서버가 아닌 탭 안에 두므로
+  게스트 식별자는 없습니다. **예외는 채팅**입니다: 게스트도 메시지를 보내고, 탭이 만든 `guestId`로
+  표시됩니다(서버는 이를 신원 증명으로 쓰지 않음).
+- **쿠키**: httpOnly(페이지 스크립트가 못 읽음) + `SameSite=Lax`, **same-origin 전제**입니다. CORS에서
+  `Access-Control-Allow-Credentials`를 켜지 않으므로 `CORS_ORIGINS`의 교차 출처 호출자에게는
+  쿠키가 전달되지 않습니다.
+- **아직 없는 것**: todos와 사용자의 연결(소유자 — 지금은 회원 모두가 한 목록을 함께 씀), 감사
+  로그의 행위자, 서명된 쿠키, 외부 로그인.
+- **모바일 앱**: 앱에는 **아직 로그인 화면이 없습니다.** 그래서 서버 설정에 따라 동작이 다릅니다.
+  - `none`: 앱의 모든 기능이 지금처럼 동작합니다.
+  - `dev`(`.env.example`의 값): 조회는 되지만, todos 생성·수정·삭제는 로컬라이즈된 401 `UNAUTHORIZED`가
+    되어 앱에 오류로 표시됩니다. 앱으로 쓰기까지 개발하려면 `.env`에서 `AUTH_DRIVER=none`으로 두세요.
+  - 음성 인텐트(`/api/voice/*`)는 `VOICE_TOKEN`이 자격 증명이므로 세션 쿠키와 무관하게 동작합니다.
+  - 앱 로그인을 붙일 때 서버 쪽 변경은 없습니다. RN의 `fetch`는 네이티브 쿠키 저장소(iOS
+    `NSHTTPCookieStorage`, Android OkHttp)에 쿠키를 보관하므로, `dev-login` → `me` 흐름을 화면으로
+    만들기만 하면 됩니다.
+
+### 채팅
+
+채팅은 어떤 기능에든 **붙이는** 시스템입니다. 방이 어느 기능에 붙어 있는지는 채팅이 모르고,
+저장·번호 매기기·실시간 전달·접속자 목록·재연결은 모든 방에서 똑같이 동작합니다. 붙이는 쪽이
+정하는 것은 방 id와 정책뿐이고, 화면은 붙이는 곳마다 다르게 그려도 됩니다.
+
+- **붙이는 법**
+  - 서버: 누가 들어오기 전에 방을 엽니다 — `container.chatService().openRoom({ id, policy })`.
+    다시 열면 정책만 갱신되므로 부팅마다 불러도 됩니다. id는 `inquiry.42`처럼 기능 이름으로 구분합니다.
+  - 클라이언트: `useChatRoomState(roomId, (room) => room.messages)`처럼 필요한 조각만 구독하고
+    (`messages`, `participants`, `status`), 보내기와 "내 메시지" 판별은 `useChatRoomActions(roomId)`
+    (`send(text)`, `isMine(message)`)로 합니다. 컴포넌트는 자기가 고른 조각이 바뀔 때만 다시 그려집니다.
+  - 화면: 붙이는 쪽이 직접 그립니다. 예시는 홈 페이지의 채팅 상자(`src/client/pages/home-chat.tsx`,
+    방은 `src/shared/domain/home-chat.ts`)입니다.
+- **방 정책** (`ChatRoomPolicy`, 방마다 다름): `retentionMs`는 메시지를 얼마나 보존할지(`null` = 방이
+  있는 동안 계속), `backlog`는 입장 직후 보여 줄 지난 채팅(최근 `maxCount`개, `maxAgeMs`보다 오래된 것은
+  제외)입니다. 예: 문의는 오래 보존, 게임 방은 잠깐만. 보존 기한이 지난 메시지는 워커가 1분마다 지우고,
+  지우기 전에도 조회에서는 빠집니다.
+- **흐름**: 전송은 `POST /api/chat/rooms/:roomId/messages`(검증·에러 형식·i18n을 그대로 씀), 수신은
+  탭당 소켓 하나(`/ws/chat`)로 여러 방을 `join`/`leave`합니다. 메시지에는 방 안에서 1씩 늘어나는
+  번호(`seq`)가 붙습니다. 입장할 때는 소켓 가입(`joined`)이 끝난 뒤 지난 채팅을 불러와 둘을 번호로
+  합치므로 빠지는 메시지가 없고, 다시 연결되면 `?after=<마지막 seq>`로 놓친 것만 받습니다. 이 조회는
+  새 메시지가 계속 쌓이므로 page/pageSize 규약 대신 커서(`after`)를 씁니다.
+- **회원과 게스트**: 채팅은 게스트도 회원과 똑같이 보냅니다(아래 인증 절의 예외). 게스트는 탭이 만든
+  `guestId`(6자리, `sessionStorage`)로 표시되며 새로고침하면 유지되고 새 탭이나 재방문이면 새
+  게스트입니다. 소켓은 연결할 때 신원을 읽으므로 로그인·로그아웃하면 클라이언트가 소켓을 새로 엽니다.
+- **접속자 목록과 수평 확장**: 메시지(`chat.messages`)와 입퇴장(`chat.presence`)은 pub/sub으로 모든
+  인스턴스에 퍼지고, 각 인스턴스가 자기 소켓에 전달합니다. 접속자 목록은 연결(탭) 단위로 다룹니다.
+  들어온 소켓에는 그 순간의 목록을 한 번 보내고(`presence`), 이후에는 누가 들어오고 나갔는지만
+  보냅니다(`presence-add` / `presence-remove`). 목록이 전송되는 동안 일어난 변화는 목록 뒤에 이어서
+  보냅니다. 한 사람의 여러 탭은 클라이언트가 한 명으로 합칩니다. 목록은 `PUBSUB_DRIVER`를 따라
+  memory 또는 Redis 해시(`presence:<방 id>`)에 둡니다. 죽은 인스턴스는 퇴장을 알릴 수 없으므로 항목은
+  60초 뒤 만료되고, 살아 있는 인스턴스가 20초마다 자기 연결을 갱신하면서 만료된 연결의 퇴장을 알립니다
+  (여러 인스턴스가 동시에 정리해도 한 번만). 정상 종료 때는 그 인스턴스의 소켓을 목록에서 바로 빼고
+  닫아서 클라이언트가 다른 인스턴스로 다시 붙게 합니다.
+- **부하에서의 동작**: 채팅 코어는 메시지가 몇 개가 오든 화면에 알리는 것을 애니메이션 프레임당 한 번으로
+  묶고(숨은 탭에서는 멈춤), 바뀐 조각만 새 값으로 바꿉니다. 한 번 받은 메시지 객체는 그대로 유지되므로
+  목록은 새 메시지 행만 그립니다(배포 빌드에서 React Compiler가 이미 그린 행을 건너뜁니다). `bun run chat:load [인원] [메시지 수]`는
+  실제 앱과 WebSocket으로 한 방에 인원을 넣고 메시지를 보내 입장 완료 시간과 전송량을 잽니다.
+- **아직 없는 것**: 비공개(참여자만 읽는) 방과 운영자 역할, 입력 중·읽음 표시, 메시지 수정·삭제,
+  도배 제한, 지난 채팅 더 불러오기.
+- **모바일 앱**: 서버 쪽 채팅(HTTP·`/ws/chat`·presence)은 앱도 그대로 쓸 수 있지만, **앱 채팅 화면은 아직
+  없습니다.** 계약(`@shared/domain/chat`)은 공통이고, 메시지 합치기(`src/client/chat/messages.ts`)와 소켓
+  공유·재연결(`chat-connection.ts`)은 브라우저 API에 기대지 않습니다. 앱으로 옮길 때 바꿀 곳은 두 군데입니다.
+  - 알림 묶기(`chat-room.ts`): 웹은 애니메이션 프레임과 숨은 탭 감지를 씁니다. 앱에서는 `AppState`로
+    바꿔야 합니다.
+  - 게스트 id(`guest-id.ts`): 웹은 `sessionStorage`에 둡니다. 앱에서는 메모리나 기기 저장소에 둡니다.
+  - 채팅 전송도 다른 API처럼 426 업데이트 게이트를 거칩니다.
+
 ### i18n
 
 `@shared/i18n` 파사드를 서버(에러 메시지 — `Accept-Language`/`?lang=` 협상)와
@@ -209,9 +299,12 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
 - **TanStack Query**: 목록 조회는 로딩/에러(재시도 버튼)/데이터/빈 상태를 모두 처리하고,
   mutation은 성공 시 목록 캐시를 invalidate합니다. 상태 토글은 **optimistic update**
   (스냅샷 → 즉시 반영 → 실패 시 롤백 → settle 시 재동기화)로 구현되어 있습니다.
+  실패한 조회는 1회 재시도하되, 4xx(400/401/404 등 — 다시 물어도 답이 같은 실패)는
+  재시도하지 않습니다 (`isRetryableError`, `src/client/api/http.ts`).
 - **최소 상태**: 페이지/필터/정렬은 URL 쿼리에서 파생, 서버 데이터는 쿼리 캐시에만 존재.
   로컬 `useState`는 "아직 제출 안 된 폼 입력"뿐입니다.
-- **라우팅**: react-router (BrowserRouter). 서버의 SPA 캐치올이 딥링크를 지원합니다.
+- **라우팅**: react-router (BrowserRouter). 서버의 SPA 캐치올이 딥링크를 지원합니다
+  (`/api/*`는 제외 — 없는 API 경로는 JSON 404).
 - **디자인 시스템**: 토큰 3계층(원시 → 디자인 치수 → 시맨틱 컬러)으로 구성되며
   `/design-system` 페이지에서 전부 확인할 수 있습니다. `<html>`의 `data-theme`
   (light/dark)와 `data-design`(A=심미성/B=시인성) 속성만으로 전환됩니다 — 헤더의 토글
@@ -234,9 +327,14 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
 
 구체적인 규칙:
 
-- **파일 추가 > 파일 수정**: 새 스키마는 `migrations/0002_mobile.sql`(0001은 손대지 않음),
+- **파일 추가 > 파일 수정**: 새 스키마는 `migrations/1001_mobile.sql`(업스트림 마이그레이션은
+  손대지 않음. 러너가 숫자 접두사로 적용 여부를 판단하므로 업스트림 번호와 겹치지 않게 1000번대를 씀),
   커서 페이지네이션은 `@shared/api/cursor-pagination`(기존 `pagination`은 유지),
   앱 UI 문자열은 `apps/mobile/src/i18n/messages`(공통 카탈로그는 서버가 쓰는 에러 메시지만).
+  - 이 파일은 예전에 `0002_mobile.sql`이었습니다. 그때 만든 DB에서는 마이그레이션 러너가 번호
+    `0002`의 기록 이름이 다르다며 멈춥니다. 기록을 옮기는 SQL 한 줄로 해결되며(데이터 유지),
+    절차는 [docs/upgrade-guides/2026-10-mobile-upstream-sync.md](docs/upgrade-guides/2026-10-mobile-upstream-sync.md)
+    4.1에 있습니다.
 - **기존 계약 불변**: 웹 클라이언트가 쓰는 `Page<T>` 응답, `X-App-Version` 스큐 검사,
   기존 라우트/테스트는 그대로입니다. 앱용 동작은 앱만 보내는 신호(`X-Platform`, `limit`)로
   분기합니다.
@@ -274,6 +372,10 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
   씁니다. 앱에서는 바텀시트로 열리고, 스와치를 누르고 있으면 반환될 값이 말풍선으로
   보입니다. iOS에서는 시스템 색 피커도 쓸 수 있습니다 —
   **[docs/palette-mobile.md](docs/palette-mobile.md)**.
+- **오버레이(Modal / BottomSheet / Sidebar)**: 웹과 같은 스택 규칙과 같은 두 문
+  (`useOverlay()` 기본, 선언형은 예외)을 씁니다. iOS에서는 RN Modal이 서로 쌓이지 않으므로,
+  **네이티브 레이어 하나**에 스택 전체를 그립니다. 앱에서 RN `Modal`을 직접 쓰지 마세요 —
+  **[docs/overlay-mobile.md](docs/overlay-mobile.md)**.
 - **UI 자동화**: testID 레지스트리 + Maestro 플로우 —
   **[docs/ui-automation-mobile.md](docs/ui-automation-mobile.md)**.
 - **음성 어시스턴트**(`src/shared/voice`, `apps/mobile/src/voice`, `capsule/`):
@@ -306,6 +408,13 @@ bun run dev:mobile        # Expo 개발 서버
   서명 자격 증명이 필요하므로 `native-build.yml`(수동/태그 트리거)로 분리했습니다.
 - **husky + lint-staged**: pre-commit에 staged 파일 lint/format, pre-push에
   `bun run check` 전체 게이트.
+- **React Compiler**: 배포 빌드는 Bun 내장 React Compiler(실험 기능)로 `.tsx` 컴포넌트를 컴파일해,
+  입력이 그대로인 JSX·계산값을 재사용하는 코드를 빌드 시점에 넣습니다. 그래서 속도만을 위한
+  `memo`/`useMemo`/`useCallback`은 직접 쓰지 않습니다. 개발 서버와 `.ts` 파일(훅 등)은 컴파일되지
+  않으므로 동일성에 기대는 memo(이펙트 의존성, context로 내려가는 함수, `.ts` 훅의 반환값)는 계속 씁니다.
+  컴파일러가 빌드에서 빠지면 `bun run build`가 실패합니다. 컴파일러는 지원하지 않는 문법이나 React 규칙
+  위반이 있는 컴포넌트를 경고 없이 건너뛰므로, `bun run compiler:report`로 컴파일되지 않은 컴포넌트·훅을
+  확인합니다. 원칙은 [CLAUDE.md](CLAUDE.md)에 있습니다.
 - **빌드**: Bun 번들러 단독 사용. `bun run build` 한 번으로 서버+클라이언트+마이그레이터가
   `dist/`에 떨어집니다. 개발 모드는 Bun의 HTML import 기반 HMR.
 - **Docker**:
@@ -323,12 +432,20 @@ bun run dev:mobile        # Expo 개발 서버
 
 ## 테스트 전략
 
-- **단위**: 비즈니스 로직(`TodoService`, `VersionPolicyService`, `AppConfigService`,
-  `PushTokenService`) — 트랜잭션 롤백, 이벤트 발행, 캐시, 성공/실패 케이스. 공통 계약의
+- **단위**: 비즈니스 로직(`TodoService`, `AuthService`, `ChatService`, `VersionPolicyService`,
+  `AppConfigService`, `PushTokenService`) — 트랜잭션 롤백, 이벤트 발행, 캐시, 성공/실패 케이스.
+  채팅은 방별 번호, 지난 채팅의 개수·나이·보존 기한, 보존 기한 정리까지 검증합니다. 공통 계약의
   순수 함수(semver, 커서 인코딩, 업데이트 판정, 원격 설정 파싱)도 여기서 고정됩니다.
+  설정 가드(`AUTH_DRIVER=dev` × 운영)와 세션 쿠키 해석도 단위로 검증합니다.
 - **통합**: 실제 앱을 임시 포트에 띄워 HTTP로 검증 — CRUD, 두 페이지네이션 모드,
-  검증 실패(400)와 로컬라이즈된 메시지, 404, 배포 스큐(409), 업그레이드 게이트(426),
-  원격 설정 ETag/304 + WS push, 관리자 인증(401), 푸시 브로드캐스트, CORS, 헬스체크.
+  검증 실패(400)와 로컬라이즈된 메시지, 404(없는 API 경로·메서드 포함), 배포 스큐(409),
+  업그레이드 게이트(426), 원격 설정 ETag/304 + WS push, 관리자 인증(401), 푸시 브로드캐스트,
+  CORS, 헬스체크, 로그인 → `me` 200 → 로그아웃 → `me` 401, 게스트의 todos 쓰기 401
+  (`none`에서는 허용).
+- **채팅**: HTTP(전송·지난 채팅·`after`)와 실제 WebSocket(가입, 실시간 수신, 접속자 목록과 중복 제거,
+  퇴장, 없는 방)을 통합으로, 게이트웨이의 접속자 순서(목록과 경합한 변화)와 만료 정리를 대역 소켓으로,
+  클라이언트 코어(소켓 공유·재연결, 번호 합치기와 빈틈 처리, 프레임당 한 번 알림, 객체 유지)를 가짜
+  소켓으로 검증합니다. presence 계약 테스트는 `REDIS_URL`이 있으면 Redis 드라이버(실제 만료 포함)에도 돕니다.
 - **앱 로직**: API 클라이언트(헤더·에러 매핑), 부트 상태 머신, 원격 설정 스토어는
   UI 없이 순수 로직으로 테스트됩니다. 화면 단위 플로우는 Maestro(E2E)가 담당합니다.
 - 전부 in-memory 드라이버로 돌므로 **`bun test` 하나로, 외부 환경 없이** 실행됩니다.

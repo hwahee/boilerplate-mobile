@@ -16,14 +16,19 @@ import { VOICE_SCOPES } from '@shared/voice/catalog';
 import type { ServerConfig } from './config';
 import { createPostgresDb, createPostgresUnitOfWork, type PostgresDb } from './db/postgres';
 import { createLogger, type Logger } from './lib/log';
+import { createPresenceStore, type PresenceStore } from './presence';
 import { createPubSub, type PubSub } from './pubsub';
 import { createPushSender, type PushSender } from './push';
+import { ChatGateway } from './realtime/chat-gateway';
 import {
   createMemoryAppConfigRepository,
   createMemoryAuditLogRepository,
   createMemoryPushTokenRepository,
+  createMemoryChatMessageRepository,
+  createMemoryChatRoomRepository,
   createMemoryTodoRepository,
   createMemoryUnitOfWork,
+  createMemoryUserRepository,
   createMemoryVersionPolicyRepository,
   MemoryStore,
 } from './repositories/memory';
@@ -31,19 +36,27 @@ import {
   createPostgresAppConfigRepository,
   createPostgresAuditLogRepository,
   createPostgresPushTokenRepository,
+  createPostgresChatMessageRepository,
+  createPostgresChatRoomRepository,
   createPostgresTodoRepository,
+  createPostgresUserRepository,
   createPostgresVersionPolicyRepository,
 } from './repositories/postgres';
 import type {
   AppConfigRepository,
   AuditLogRepository,
   PushTokenRepository,
+  ChatMessageRepository,
+  ChatRoomRepository,
   TodoRepository,
   UnitOfWork,
+  UserRepository,
   VersionPolicyRepository,
 } from './repositories/types';
 import { AppConfigService } from './services/app-config-service';
+import { AuthService } from './services/auth-service';
 import { PushTokenService } from './services/push-token-service';
+import { ChatService } from './services/chat-service';
 import { TodoService } from './services/todo-service';
 import { VersionPolicyService } from './services/version-policy-service';
 import { VoiceService } from './services/voice-service';
@@ -63,10 +76,14 @@ export interface Container {
   voiceService(): VoiceService;
   /** Resolves the caller of /api/voice/* — the swap point for real auth. */
   voiceTokenVerifier(): VoiceTokenVerifier;
+  authService(): AuthService;
+  chatService(): ChatService;
+  /** This process's chat sockets — one per process, like everything here. */
+  chatGateway(): ChatGateway;
   pubsub(): PubSub;
   /** Health probe: is the persistence layer reachable? */
   dbPing(): Promise<boolean>;
-  /** Closes every held resource (DB pool, pub/sub connections). */
+  /** Closes every held resource (DB pool, pub/sub and presence connections). */
   dispose(): Promise<void>;
 }
 
@@ -91,6 +108,7 @@ export interface ContainerOverrides {
   versionPolicyCacheTtlMs?: number;
   /** Stand in for real voice auth (per-user tokens, OAuth account linking). */
   voiceTokenVerifier?: VoiceTokenVerifier;
+  presence?: PresenceStore;
 }
 
 export function createContainer(
@@ -113,6 +131,11 @@ export function createContainer(
       ? createPostgresTodoRepository(postgres())
       : createMemoryTodoRepository(memoryStore()),
   );
+  const userRepository = lazy<UserRepository>(() =>
+    config.dbDriver === 'postgres'
+      ? createPostgresUserRepository(postgres())
+      : createMemoryUserRepository(memoryStore()),
+  );
   const auditLogRepository = lazy<AuditLogRepository>(() =>
     config.dbDriver === 'postgres'
       ? createPostgresAuditLogRepository(postgres())
@@ -133,6 +156,16 @@ export function createContainer(
       ? createPostgresPushTokenRepository(postgres())
       : createMemoryPushTokenRepository(memoryStore()),
   );
+  const chatRoomRepository = lazy<ChatRoomRepository>(() =>
+    config.dbDriver === 'postgres'
+      ? createPostgresChatRoomRepository(postgres())
+      : createMemoryChatRoomRepository(memoryStore()),
+  );
+  const chatMessageRepository = lazy<ChatMessageRepository>(() =>
+    config.dbDriver === 'postgres'
+      ? createPostgresChatMessageRepository(postgres())
+      : createMemoryChatMessageRepository(memoryStore()),
+  );
   const unitOfWork = lazy<UnitOfWork>(() =>
     config.dbDriver === 'postgres'
       ? createPostgresUnitOfWork(postgres())
@@ -141,6 +174,7 @@ export function createContainer(
 
   const pubsub = lazy<PubSub>(() => overrides.pubsub ?? createPubSub(config));
   const pushSender = lazy<PushSender>(() => overrides.pushSender ?? createPushSender(config, log));
+  const presence = lazy<PresenceStore>(() => overrides.presence ?? createPresenceStore(config));
 
   const todoService = lazy(
     () =>
@@ -182,6 +216,37 @@ export function createContainer(
       createStaticVoiceTokenVerifier(config.voiceToken, VOICE_SCOPES),
   );
 
+  const authService = lazy(
+    () =>
+      new AuthService({
+        users: userRepository(),
+        auditLogs: auditLogRepository(),
+        uow: unitOfWork(),
+      }),
+  );
+
+  const chatService = lazy(
+    () =>
+      new ChatService({
+        rooms: chatRoomRepository(),
+        messages: chatMessageRepository(),
+        users: userRepository(),
+        uow: unitOfWork(),
+        events: pubsub(),
+      }),
+  );
+
+  const chatGateway = lazy(
+    () =>
+      new ChatGateway({
+        config,
+        chat: chatService(),
+        presence: presence(),
+        events: pubsub(),
+        log,
+      }),
+  );
+
   return {
     config,
     log,
@@ -191,6 +256,9 @@ export function createContainer(
     pushTokenService,
     voiceService,
     voiceTokenVerifier,
+    authService,
+    chatService,
+    chatGateway,
     pubsub,
     async dbPing() {
       if (config.dbDriver === 'memory') return true;
@@ -198,6 +266,7 @@ export function createContainer(
     },
     async dispose() {
       await pubsub().close();
+      await presence().close();
       if (postgresCreated) await postgres().close();
     },
   };

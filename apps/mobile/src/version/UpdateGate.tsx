@@ -12,14 +12,15 @@
  * while (shared `decideUpdate` implements the window).
  */
 import { useState } from 'react';
-import { Modal, View } from 'react-native';
+import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { UpdateDecision } from '@shared/domain/version-policy';
 
 import { AppText } from '../components/AppText';
 import { Button } from '../components/Button';
-import { Card } from '../components/Card';
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- live content: the action button shows download progress while the sheet is open
+import { BottomSheet } from '../components/overlay/declarative';
 import { Screen } from '../components/Screen';
 import { getCrashReporter } from '../analytics';
 import { useLocale } from '../i18n/LocaleProvider';
@@ -66,10 +67,17 @@ export function ForceUpdateScreen({ storeUrl, message }: ForceUpdateScreenProps)
 
 interface OptionalUpdatePromptProps {
   decision: Extract<UpdateDecision, { kind: 'optional' }>;
+  /** Controlled: lowered by `onDismiss`, so the sheet can animate out. */
+  open: boolean;
   onDismiss: () => void;
 }
 
-export function OptionalUpdatePrompt({ decision, onDismiss }: OptionalUpdatePromptProps) {
+/**
+ * A sheet on the overlay stack (components/overlay) rather than its own RN
+ * Modal: on iOS two sibling Modals cannot both be presented, so a prompt with
+ * its own native layer would collide with any overlay the user opens.
+ */
+export function OptionalUpdatePrompt({ decision, open, onDismiss }: OptionalUpdatePromptProps) {
   const { tokens } = useTheme();
   const { t } = useLocale();
   const [applying, setApplying] = useState(false);
@@ -97,42 +105,39 @@ export function OptionalUpdatePrompt({ decision, onDismiss }: OptionalUpdateProm
   const isOta = decision.via === 'ota';
 
   return (
-    <Modal transparent animationType="fade" onRequestClose={later}>
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: tokens.colors.overlay,
-          justifyContent: 'flex-end',
-          padding: tokens.spacing.md,
-        }}
-      >
-        <Card testID={TESTID.update.promptSheet} style={{ gap: tokens.spacing.md }}>
-          <AppText variant="heading">{t('update.optional.title')}</AppText>
-          <AppText muted>
-            {decision.message ??
-              t(isOta ? 'update.ota.body' : 'update.store.body', {
-                version: decision.latestVersion,
-              })}
-          </AppText>
-          <Button
-            testID={TESTID.update.promptAction}
-            label={
-              applying
-                ? t('update.downloading')
-                : t(isOta ? 'update.action.ota' : 'update.action.store')
-            }
-            loading={applying}
-            onPress={() => (isOta ? void applyOta() : void openStore(decision.storeUrl))}
-          />
-          <Button
-            testID={TESTID.update.promptLater}
-            label={t('update.action.later')}
-            variant="ghost"
-            disabled={applying}
-            onPress={later}
-          />
-        </Card>
+    <BottomSheet
+      open={open}
+      onClose={later}
+      // Mid-download there is nothing sensible to cancel into.
+      dismissable={!applying}
+      title={t('update.optional.title')}
+      testID={TESTID.update.promptSheet}
+    >
+      <View style={{ gap: tokens.spacing.md }}>
+        <AppText muted>
+          {decision.message ??
+            t(isOta ? 'update.ota.body' : 'update.store.body', {
+              version: decision.latestVersion,
+            })}
+        </AppText>
+        <Button
+          testID={TESTID.update.promptAction}
+          label={
+            applying
+              ? t('update.downloading')
+              : t(isOta ? 'update.action.ota' : 'update.action.store')
+          }
+          loading={applying}
+          onPress={() => (isOta ? void applyOta() : void openStore(decision.storeUrl))}
+        />
+        <Button
+          testID={TESTID.update.promptLater}
+          label={t('update.action.later')}
+          variant="ghost"
+          disabled={applying}
+          onPress={later}
+        />
       </View>
-    </Modal>
+    </BottomSheet>
   );
 }

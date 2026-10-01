@@ -19,6 +19,9 @@ import { Card } from '../components/Card';
 import { EmptyState } from '../components/EmptyState';
 import { ErrorState } from '../components/ErrorState';
 import { IconButton } from '../components/IconButton';
+import { useOverlay } from '../components/overlay';
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- always-visible layout: an inline sidebar is a region of the screen, not something the registry pushes on top of it
+import { Sidebar } from '../components/overlay/declarative';
 import { Palette } from '../components/Palette';
 import { Screen } from '../components/Screen';
 import { Spinner } from '../components/Spinner';
@@ -34,6 +37,157 @@ function Section({ name, title, children }: { name: string; title: string; child
       <AppText variant="heading">{title}</AppText>
       {children}
     </Card>
+  );
+}
+
+/**
+ * Overlays are opened through `useOverlay()`, never by rendering a component —
+ * docs/overlay-design.md §5.1. The nesting button is the part worth watching:
+ * a confirm on top of the modal does NOT darken the screen a second time
+ * (the scrim belongs to the stack), and Android back closes only the top one.
+ */
+function OverlayDemo() {
+  const overlay = useOverlay();
+  const { tokens } = useTheme();
+  const [result, setResult] = useState('—');
+  const [dockOpen, setDockOpen] = useState(false);
+  const ids = TESTID.designSystem.overlay;
+
+  const confirmDiscard = () =>
+    overlay.modal<boolean>({
+      title: 'Discard your changes?',
+      testID: ids.confirm,
+      size: 'sm',
+      tone: 'danger',
+      render: () => (
+        <AppText>
+          Two overlays are open and the screen behind is dimmed exactly once. Press back: this one
+          closes, the modal underneath stays.
+        </AppText>
+      ),
+      renderFooter: ({ resolve }) => (
+        <>
+          <Button
+            testID={ids.confirmNo}
+            label="Keep editing"
+            variant="secondary"
+            onPress={() => resolve(false)}
+          />
+          <Button
+            testID={ids.confirmYes}
+            label="Discard"
+            variant="danger"
+            onPress={() => resolve(true)}
+          />
+        </>
+      ),
+    });
+
+  const openModal = async () => {
+    const answer = await overlay.modal<string>({
+      title: 'Edit item',
+      testID: ids.modal,
+      render: ({ close }) => (
+        <View style={{ gap: tokens.spacing.sm }}>
+          <AppText>
+            The call awaits this overlay: whatever a button passes to resolve becomes the value
+            below. Dismissing resolves undefined instead of throwing — cancelling is an outcome, not
+            an error.
+          </AppText>
+          <Button
+            testID={ids.nest}
+            label="Open a confirm on top of this"
+            variant="secondary"
+            onPress={() => void confirmDiscard().then((discard) => discard && close())}
+          />
+        </View>
+      ),
+      renderFooter: ({ close, resolve }) => (
+        <>
+          <Button testID={ids.cancel} label="Cancel" variant="ghost" onPress={close} />
+          <Button testID={ids.save} label="Save" onPress={() => resolve('saved')} />
+        </>
+      ),
+    });
+    setResult(answer ?? 'dismissed');
+  };
+
+  const openSheet = async () => {
+    const answer = await overlay.sheet<string>({
+      title: 'Filters',
+      testID: ids.sheet,
+      snapPoint: 'content',
+      render: ({ resolve }) => (
+        <View style={{ gap: tokens.spacing.sm }}>
+          <AppText>A bottom sheet: the same stack, a different presentation.</AppText>
+          <Button
+            testID={ids.sheetApply}
+            label="Apply"
+            onPress={() => resolve('filters applied')}
+          />
+        </View>
+      ),
+    });
+    setResult(answer ?? 'dismissed');
+  };
+
+  const openSidebar = async () => {
+    const answer = await overlay.sidebar<string>({
+      title: 'Navigation',
+      testID: ids.sidebar,
+      side: 'start',
+      render: ({ resolve }) => (
+        <View style={{ gap: tokens.spacing.sm }}>
+          <AppText>A drawer from the start edge — modal on every phone.</AppText>
+          <Button
+            testID={ids.sidebarPick}
+            label="Pick something"
+            variant="secondary"
+            onPress={() => resolve('navigated')}
+          />
+        </View>
+      ),
+    });
+    setResult(answer ?? 'dismissed');
+  };
+
+  return (
+    <View style={{ gap: tokens.spacing.sm }}>
+      <Button testID={ids.openModal} label="Open modal" onPress={() => void openModal()} />
+      <Button
+        testID={ids.openSheet}
+        label="Open bottom sheet"
+        variant="secondary"
+        onPress={() => void openSheet()}
+      />
+      <Button
+        testID={ids.openSidebar}
+        label="Open sidebar"
+        variant="secondary"
+        onPress={() => void openSidebar()}
+      />
+      <AppText>
+        Resolved value: <AppText testID={ids.result}>{result}</AppText>
+      </AppText>
+      <Button
+        testID={ids.inlineToggle}
+        label={`${dockOpen ? 'Hide' : 'Show'} the docked sidebar`}
+        variant="ghost"
+        onPress={() => setDockOpen((current) => !current)}
+      />
+      <Sidebar
+        modality="inline"
+        open={dockOpen}
+        onClose={() => setDockOpen(false)}
+        title="Docked"
+        testID={ids.inline}
+      >
+        <AppText>
+          The declarative door: layout in place, no scrim, never on the stack. (On the web
+          `modality="auto"` docks it on wide screens; phones always get the drawer.)
+        </AppText>
+      </Sidebar>
+    </View>
   );
 }
 
@@ -197,6 +351,10 @@ export function DesignSystemScreen() {
             <Badge label="Warning" tone="warning" />
             <Badge label="Danger" tone="danger" />
           </View>
+        </Section>
+
+        <Section name="overlays" title={t('designSystem.overlays')}>
+          <OverlayDemo />
         </Section>
 
         <Section name="disclosure" title={t('designSystem.disclosure')}>

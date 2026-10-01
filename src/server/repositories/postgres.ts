@@ -4,6 +4,7 @@
  * Column mapping: snake_case in SQL ⇄ camelCase in the domain. Timestamps are
  * `timestamptz` and always read/written as UTC (`UtcIsoString`).
  */
+import type { ChatMessage, ChatParticipant, ChatRoom } from '@shared/domain/chat';
 import type { Platform } from '@shared/domain/platform';
 import type { Todo, TodoListQuery, TodoStatus } from '@shared/domain/todo';
 import type { UpdateMode } from '@shared/domain/version-policy';
@@ -14,10 +15,13 @@ import type {
   AppConfigRepository,
   AuditLogEntry,
   AuditLogRepository,
+  ChatMessageRepository,
+  ChatRoomRepository,
   DbSession,
   DevicePushToken,
   PushTokenRepository,
   TodoRepository,
+  UserRepository,
   VersionPolicyRepository,
 } from './types';
 
@@ -167,6 +171,35 @@ export function createPostgresTodoRepository(db: PostgresDb): TodoRepository {
   };
 }
 
+interface UserRow {
+  id: string;
+  display_name: string;
+  created_at: Date;
+}
+
+export function createPostgresUserRepository(db: PostgresDb): UserRepository {
+  return {
+    async findById(id, session) {
+      const sql = sessionSql(db, session);
+      const rows = await sql<UserRow[]>`
+        SELECT id, display_name, created_at FROM users WHERE id = ${id}
+      `;
+      const row = rows[0];
+      return row
+        ? { id: row.id, displayName: row.display_name, createdAt: toUtcIso(row.created_at) }
+        : null;
+    },
+
+    async insert(user, session) {
+      const sql = sessionSql(db, session);
+      await sql`
+        INSERT INTO users (id, display_name, created_at)
+        VALUES (${user.id}, ${user.displayName}, ${user.createdAt})
+      `;
+    },
+  };
+}
+
 export function createPostgresAuditLogRepository(db: PostgresDb): AuditLogRepository {
   return {
     async append(entry: AuditLogEntry, session?: DbSession) {
@@ -185,7 +218,7 @@ export function createPostgresAuditLogRepository(db: PostgresDb): AuditLogReposi
   };
 }
 
-// ── Mobile-app support tables (migrations/0002_mobile.sql) ───────────────────
+// ── Mobile-app support tables (migrations/1001_mobile.sql) ───────────────────
 
 interface VersionPolicyRow {
   platform: Platform;
@@ -250,7 +283,7 @@ export function createPostgresAppConfigRepository(db: PostgresDb): AppConfigRepo
         SELECT revision FROM app_config_revision
       `;
       // Only base-scope rows for now; platform / min_app_version overrides
-      // are a schema-ready extension (see migrations/0002_mobile.sql).
+      // are a schema-ready extension (see migrations/1001_mobile.sql).
       const rows = await sql<{ key: string; value: unknown }[]>`
         SELECT key, value FROM app_config
          WHERE platform IS NULL AND min_app_version IS NULL
@@ -319,6 +352,148 @@ export function createPostgresPushTokenRepository(db: PostgresDb): PushTokenRepo
         createdAt: toUtcIso(row.created_at),
         updatedAt: toUtcIso(row.updated_at),
       }));
+    },
+  };
+}
+
+/** `bigint` columns arrive as strings; they hold millisecond counts and sequence numbers. */
+type BigintColumn = string | number;
+
+function toNumberOrNull(value: BigintColumn | null): number | null {
+  return value === null ? null : Number(value);
+}
+
+interface ChatRoomRow {
+  id: string;
+  retention_ms: BigintColumn | null;
+  backlog_max_count: number;
+  backlog_max_age_ms: BigintColumn | null;
+}
+
+export function createPostgresChatRoomRepository(db: PostgresDb): ChatRoomRepository {
+  return {
+    async findById(id, session) {
+      const sql = sessionSql(db, session);
+      const rows = await sql<ChatRoomRow[]>`
+        SELECT id, retention_ms, backlog_max_count, backlog_max_age_ms
+          FROM chat_rooms
+         WHERE id = ${id}
+      `;
+      const row = rows[0];
+      return row
+        ? {
+            id: row.id,
+            policy: {
+              retentionMs: toNumberOrNull(row.retention_ms),
+              backlog: {
+                maxCount: row.backlog_max_count,
+                maxAgeMs: toNumberOrNull(row.backlog_max_age_ms),
+              },
+            },
+          }
+        : null;
+    },
+
+    async upsert(room: ChatRoom, session) {
+      const sql = sessionSql(db, session);
+      const { retentionMs, backlog } = room.policy;
+      await sql`
+        INSERT INTO chat_rooms (id, retention_ms, backlog_max_count, backlog_max_age_ms)
+        VALUES (${room.id}, ${retentionMs}, ${backlog.maxCount}, ${backlog.maxAgeMs})
+        ON CONFLICT (id) DO UPDATE
+           SET retention_ms = EXCLUDED.retention_ms,
+               backlog_max_count = EXCLUDED.backlog_max_count,
+               backlog_max_age_ms = EXCLUDED.backlog_max_age_ms
+      `;
+    },
+
+    async nextSeq(roomId, session) {
+      const sql = sessionSql(db, session);
+      const rows = await sql<{ last_seq: BigintColumn }[]>`
+        UPDATE chat_rooms SET last_seq = last_seq + 1 WHERE id = ${roomId} RETURNING last_seq
+      `;
+      const row = rows[0];
+      return row ? Number(row.last_seq) : null;
+    },
+  };
+}
+
+interface ChatMessageRow {
+  room_id: string;
+  seq: BigintColumn;
+  author_kind: ChatParticipant['kind'];
+  author_id: string;
+  author_name: string | null;
+  body: string;
+  created_at: Date;
+}
+
+function rowToChatMessage(row: ChatMessageRow): ChatMessage {
+  return {
+    roomId: row.room_id,
+    seq: Number(row.seq),
+    author:
+      row.author_kind === 'member'
+        ? { kind: 'member', userId: row.author_id, displayName: row.author_name ?? row.author_id }
+        : { kind: 'guest', guestId: row.author_id },
+    text: row.body,
+    createdAt: toUtcIso(row.created_at),
+  };
+}
+
+export function createPostgresChatMessageRepository(db: PostgresDb): ChatMessageRepository {
+  return {
+    async insert(message, session) {
+      const sql = sessionSql(db, session);
+      const { author } = message;
+      const [authorId, authorName] =
+        author.kind === 'member' ? [author.userId, author.displayName] : [author.guestId, null];
+      await sql`
+        INSERT INTO chat_messages (room_id, seq, author_kind, author_id, author_name, body, created_at)
+        VALUES (
+          ${message.roomId},
+          ${message.seq},
+          ${author.kind},
+          ${authorId},
+          ${authorName},
+          ${message.text},
+          ${message.createdAt}
+        )
+      `;
+    },
+
+    async listLatest(roomId, { limit, since, afterSeq = 0 }, session) {
+      const sql = sessionSql(db, session);
+      // Newest `limit` rows by the primary key (room_id, seq), turned back to oldest first.
+      const rows = await sql<ChatMessageRow[]>`
+        SELECT * FROM (
+          SELECT room_id, seq, author_kind, author_id, author_name, body, created_at
+            FROM chat_messages
+           WHERE room_id = ${roomId}
+             AND seq > ${afterSeq}
+             AND (${since ?? null}::timestamptz IS NULL OR created_at >= ${since ?? null}::timestamptz)
+           ORDER BY seq DESC
+           LIMIT ${limit}
+        ) latest
+        ORDER BY seq ASC
+      `;
+      return rows.map(rowToChatMessage);
+    },
+
+    async deleteExpired(now, session) {
+      const sql = sessionSql(db, session);
+      const rows = await sql<{ deleted: number }[]>`
+        WITH deleted AS (
+          DELETE FROM chat_messages m
+           USING chat_rooms r
+           WHERE m.room_id = r.id
+             AND r.retention_ms IS NOT NULL
+             AND m.created_at < ${now}::timestamptz - r.retention_ms * interval '1 millisecond'
+          RETURNING 1
+        )
+        SELECT count(*)::int AS deleted FROM deleted
+      `;
+      return rows[0]?.deleted ?? 0;
     },
   };
 }

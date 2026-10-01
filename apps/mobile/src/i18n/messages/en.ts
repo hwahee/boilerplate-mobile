@@ -102,6 +102,7 @@ export const en = {
   'designSystem.feedback': 'Feedback',
   'designSystem.dataDisplay': 'Data display',
   'designSystem.colorInput': 'Color input (palette)',
+  'designSystem.overlays': 'Overlays (modal · sheet · sidebar)',
   'designSystem.disclosure': 'Disclosure (accordion)',
 
   'error.validation': 'The request contains invalid data.',

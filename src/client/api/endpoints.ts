@@ -16,9 +16,16 @@
  * ./queries.ts), never call `fetch` directly.
  */
 import type { Page } from '@shared/api/pagination';
+import type {
+  ChatHistory,
+  ChatHistoryQuery,
+  ChatMessage,
+  SendChatMessageInput,
+} from '@shared/domain/chat';
 import type { CreateTodoInput, Todo, TodoListQuery, UpdateTodoInput } from '@shared/domain/todo';
+import type { DevLoginInput, User } from '@shared/domain/user';
 
-import { apiFetch } from './http';
+import { ApiRequestError, apiFetch } from './http';
 
 /** The client may send a partial list query; the server applies the defaults. */
 export type TodoListQueryInput = Partial<TodoListQuery>;
@@ -79,5 +86,93 @@ export const todosApi = {
    */
   remove(id: string): Promise<void> {
     return apiFetch(`/api/todos/${id}`, { method: 'DELETE' });
+  },
+};
+
+/**
+ * Sign-in. The session travels as an httpOnly cookie the browser sends on its
+ * own (same-origin), so none of these calls handle a token.
+ *
+ * These endpoints exist only when the server runs with `AUTH_DRIVER=dev`;
+ * otherwise every one of them answers 404 `NOT_FOUND`.
+ */
+export const authApi = {
+  /**
+   * `POST /api/auth/dev-login`
+   *
+   * Signs in by user id alone — no password (development only). The first
+   * sign-in with an id creates that user.
+   * - Body:   `{ userId: string }` — 1–50 chars of `a-z`, `0-9`, `_`, `-`.
+   * - Errors: 400 `VALIDATION_ERROR`.
+   * - Returns the signed-in `User` and sets the session cookie.
+   */
+  devLogin(input: DevLoginInput): Promise<User> {
+    return apiFetch('/api/auth/dev-login', { method: 'POST', body: input });
+  },
+
+  /**
+   * `GET /api/auth/me`
+   *
+   * The signed-in user.
+   * - Returns `null` when signed out (the server's 401 `UNAUTHORIZED`).
+   */
+  async me(): Promise<User | null> {
+    try {
+      return await apiFetch<User>('/api/auth/me');
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.code === 'UNAUTHORIZED') return null;
+      throw error;
+    }
+  },
+
+  /**
+   * `POST /api/auth/logout`
+   *
+   * Signs out (clears the session cookie). Succeeds when already signed out.
+   * - Returns 204 (void).
+   */
+  logout(): Promise<void> {
+    return apiFetch('/api/auth/logout', { method: 'POST' });
+  },
+};
+
+/**
+ * Chat rooms — the HTTP half: catching up and sending. New messages and who
+ * is in a room arrive over the `/ws/chat` socket instead, which the chat core
+ * (src/client/chat) manages; features use its hooks (`useChatRoomState`, `useChatRoomActions`) rather than
+ * calling these directly.
+ */
+export const chatApi = {
+  /**
+   * `GET /api/chat/rooms/:roomId/messages`
+   *
+   * The room's backlog, oldest first: its latest messages, as many and as far
+   * back as the room's policy allows. Not the page/pageSize convention —
+   * messages keep arriving, so the cursor is a message number.
+   * - Query:  `after` — only messages with a higher `seq` (catching up after a reconnect).
+   * - Errors: 400 `VALIDATION_ERROR`, 404 `NOT_FOUND` for an unknown room.
+   * - Returns `{ items: ChatMessage[] }`.
+   */
+  history(roomId: string, query: ChatHistoryQuery = {}): Promise<ChatHistory> {
+    return apiFetch(`/api/chat/rooms/${encodeURIComponent(roomId)}/messages`, {
+      searchParams: query,
+    });
+  },
+
+  /**
+   * `POST /api/chat/rooms/:roomId/messages`
+   *
+   * Sends a message; everyone in the room receives it over `/ws/chat`. Open to
+   * guests, who name themselves with their tab's guest id.
+   * - Body:   `{ text: string, guestId?: string }` — text 1–1000 chars, not
+   *           blank; `guestId` (6 hex chars) required when not signed in.
+   * - Errors: 400 `VALIDATION_ERROR`, 404 `NOT_FOUND`.
+   * - Returns 201 with the stored `ChatMessage` (`seq` = the room's next number).
+   */
+  send(roomId: string, input: SendChatMessageInput): Promise<ChatMessage> {
+    return apiFetch(`/api/chat/rooms/${encodeURIComponent(roomId)}/messages`, {
+      method: 'POST',
+      body: input,
+    });
   },
 };

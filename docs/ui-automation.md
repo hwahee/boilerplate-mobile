@@ -46,16 +46,20 @@
 
 전체 목록은 `src/client/testing/testids.ts`가 소스 오브 트루스입니다. 주요 항목:
 
-| 영역          | testid                                                                                  |
-| ------------- | --------------------------------------------------------------------------------------- |
-| 앱 셸         | `app.header`, `app.nav.todos`, `app.nav.design-system`, `app.controls.*`                |
-| Todos 생성    | `todos.create.form` / `.input` / `.submit` (+ `todos.create.input.error`)               |
-| Todos 목록    | `todos.list`, `todos.item.<id>`, `todos.item.<id>.toggle`, `todos.item.<id>.delete`     |
-| Todos 상태    | `todos.loading`, `todos.error`, `todos.error.retry`, `todos.empty`, `todos.total-count` |
-| 필터/정렬     | `todos.filter.status`, `todos.sort.by`                                                  |
-| 페이지네이션  | `todos.pagination` / `.prev` / `.next` / `.status`                                      |
-| 디자인 시스템 | `design-system.page`, `design-system.section.<name>`, `ds.*` (쇼케이스 컴포넌트)        |
-| NotFound      | `not-found.page`, `not-found.home-link`                                                 |
+| 영역          | testid                                                                                       |
+| ------------- | -------------------------------------------------------------------------------------------- |
+| 앱 셸         | `app.header`, `app.nav.todos`, `app.nav.design-system`, `app.controls.*`                     |
+| 계정 (헤더)   | `app.account.form` / `.user-id` / `.sign-in`, `app.account.user` / `.sign-out`               |
+| Todos 생성    | `todos.create.form` / `.input` / `.submit` (+ `todos.create.input.error`)                    |
+| Todos 게스트  | `todos.guest-hint` — 게스트에게 쓰기 대신 보이는 안내 (쓰기 UI는 회원에게만 렌더링)          |
+| Todos 목록    | `todos.list`, `todos.item.<id>`, `todos.item.<id>.toggle`, `todos.item.<id>.delete`          |
+| Todos 상태    | `todos.loading`, `todos.error`, `todos.error.retry`, `todos.empty`, `todos.total-count`      |
+| 필터/정렬     | `todos.filter.status`, `todos.sort.by`                                                       |
+| 페이지네이션  | `todos.pagination` / `.prev` / `.next` / `.status`                                           |
+| 홈 채팅       | `home.page`, `home.chat.panel` / `.status` / `.participants` / `.log` / `.empty`             |
+| 홈 채팅 입력  | `home.chat.form` / `.input` / `.send` (+ `home.chat.input.error`), `home.chat.message.<seq>` |
+| 디자인 시스템 | `design-system.page`, `design-system.section.<name>`, `ds.*` (쇼케이스 컴포넌트)             |
+| NotFound      | `not-found.page`, `not-found.home-link`                                                      |
 
 `TextField`는 에러 표시 시 자동으로 `` `${testId}.error` `` 요소를 추가합니다.
 
@@ -66,6 +70,15 @@
 `` `${testId}.hex` ``(+ `.hex.error`), `` `${testId}.native` ``, `` `${testId}.contrast` ``를
 파생합니다. 팝업은 top layer(`popover`)에 뜨므로 DOM 위치가 아니라 testid나
 `role="dialog"`로 잡으세요. 선택 대기는 스와치의 `aria-selected`로 합니다.
+
+오버레이(`Modal` / `BottomSheet` / `Sidebar`)는 `` `${testId}.panel` ``, `` `${testId}.title` ``,
+`` `${testId}.close` ``를 파생합니다. 명령형(`useOverlay()`)으로 열든 선언형으로 열든 같은
+testid가 나오므로 테스트는 둘을 구분할 필요가 없습니다. 모달 오버레이는 `<dialog>` top
+layer에 뜨므로 DOM 위치가 아니라 testid나 `role="dialog"`로 잡고, 열림/닫힘은 패널의 존재로
+기다립니다. 중첩됐을 때 화면이 한 겹만 어두워지는지는 `dialog[open]` 중
+`data-overlay-top="true"`가 정확히 하나인지로 확인할 수 있습니다. 인라인 사이드바
+(`modality="inline"`, 넓은 뷰포트의 `auto`)는 오버레이가 아니라 레이아웃이라 `<aside>`로
+렌더되고 top layer에 뜨지 않습니다.
 
 ```ts
 test('picks a preset color', async ({ page }) => {

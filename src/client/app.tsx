@@ -1,5 +1,5 @@
 /**
- * App shell: providers (query cache, theme, locale), router, and the layout
+ * App shell: providers (query cache, theme, locale, overlays), router, and the layout
  * with the global controls (theme / design-variant / language switching).
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -8,20 +8,24 @@ import { BrowserRouter, NavLink, Route, Routes } from 'react-router';
 
 import { SUPPORTED_LOCALES, type Locale } from '@shared/i18n';
 
+import { isRetryableError } from './api/http';
+import { AccountControls } from './auth/account-controls';
 import { LocaleProvider, useI18n } from './i18n/locale-context';
 import { DesignSystemPage } from './pages/design-system-page';
+import { HomePage } from './pages/home-page';
 import { NotFoundPage } from './pages/not-found-page';
-import { TodosPage } from './pages/todos-page';
 import { TESTID } from './testing/testids';
 import { nextDesign, ThemeProvider, useTheme, type Design } from './theme/theme-context';
 import { Button } from './ui/button';
+import { OverlayProvider } from './ui/overlay';
 import { Select } from './ui/select';
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
-      retry: 1,
+      // One retry, and only when it could change the answer (never on a 4xx).
+      retry: (failureCount, error) => failureCount < 1 && isRetryableError(error),
     },
   },
 });
@@ -85,6 +89,7 @@ function Header() {
           onChange={setLocale}
           testId={TESTID.app.localeSelect}
         />
+        <AccountControls />
       </div>
     </header>
   );
@@ -100,7 +105,7 @@ function Shell() {
       <Header />
       <main id="main" className="app-main">
         <Routes>
-          <Route path="/" element={<TodosPage />} />
+          <Route path="/" element={<HomePage />} />
           <Route path="/design-system" element={<DesignSystemPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
@@ -115,7 +120,12 @@ export function App() {
       <ThemeProvider>
         <LocaleProvider>
           <BrowserRouter>
-            <Shell />
+            {/* Inside every provider and the router: overlays opened through
+                useOverlay() render here, so they see exactly these contexts
+                and nothing from the subtree that opened them. */}
+            <OverlayProvider>
+              <Shell />
+            </OverlayProvider>
           </BrowserRouter>
         </LocaleProvider>
       </ThemeProvider>

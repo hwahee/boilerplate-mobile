@@ -11,7 +11,7 @@
 ## 원칙
 
 1. **인터랙티브 디자인 시스템 컴포넌트는 `testID`가 필수 prop**입니다
-   (`Button`, `IconButton`, `TextField`, `Accordion`, `Palette`). testID 없이 렌더링하면 타입 에러가 나므로
+   (`Button`, `IconButton`, `TextField`, `Accordion`, `Palette`), 그리고 오버레이 요청(`title`·`testID` 필수). testID 없이 렌더링하면 타입 에러가 나므로
    자동화 불가능한 컨트롤이 애초에 만들어질 수 없습니다.
 2. **testID 문자열은 인라인으로 쓰지 않습니다.** 유일한 출처는
    [`apps/mobile/src/testing/testids.ts`](../apps/mobile/src/testing/testids.ts)의
@@ -67,6 +67,11 @@
 소문자 hex, `selected` 상태), `.hex`(+ `.hex.error`), `.native`(iOS에만), `.contrast`를
 파생합니다. 전체 표는 [palette-mobile.md](palette-mobile.md) §6에 있습니다.
 
+오버레이(Modal / BottomSheet / Sidebar)는 `` `${testID}` ``(열려 있거나 닫히는 중일 때만
+존재), `.panel`, `.title`, `.close`를 파생합니다. 열림과 닫힘은 `{testID}`가 있는지 없는지로
+기다리세요. 모든 오버레이는 네이티브 레이어 하나 안에 그려지므로, 열린 오버레이 뒤의 화면
+요소는 자동화 도구에서 보이지 않을 수 있습니다([overlay-mobile.md](overlay-mobile.md)).
+
 설정의 디자인 선택지는 `settings.design.a` / `.b` / `.office` / `.kids`입니다.
 
 ## E2E — Maestro (권장)
@@ -76,6 +81,7 @@
 - `boot-and-create-todo.yaml` — 부트(광고 스킵) → 할 일 생성/토글
 - `settings-theme-design.yaml` — 테마/디자인(A/B/office/kids)/언어 전환
 - `design-system-palette.yaml` — 팔레트: 프리셋 선택, hex 오류/정상 입력
+- `design-system-overlays.yaml` — 오버레이: 모달 위 확인창(LIFO), resolve 값, 시트/사이드바
 
 실행 방법:
 

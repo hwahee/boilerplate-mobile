@@ -226,9 +226,7 @@ export interface PaletteSkin {
   selectedRing: string | null;
   /** Selected-swatch marker drawn INSIDE the swatch (office's -2px outline). */
   selectedInset: ViewStyle | null;
-  /** Sheet surface overrides + its inner padding/gap. */
-  sheet: ViewStyle;
-  sheetPadding: number;
+  /** Gap between the sheet's sections (groups, the custom row). */
   sectionGap: number;
   /** Trigger and the "more colors" button. */
   trigger: ViewStyle;
@@ -255,8 +253,6 @@ export function paletteSkin(tokens: Tokens): PaletteSkin {
     swatchHitSlop: undefined,
     selectedRing: `0px 0px 0px 2px ${colors.surfaceAlt}, 0px 0px 0px 4px ${colors.focus}`,
     selectedInset: null,
-    sheet: {},
-    sheetPadding: 12,
     sectionGap: 12,
     trigger: {},
     nativeButton: {},
@@ -276,8 +272,6 @@ export function paletteSkin(tokens: Tokens): PaletteSkin {
       swatchHitSlop: 1,
       selectedRing: null,
       selectedInset: { borderWidth: 2, borderColor: colors.primary },
-      sheet: bevelBorder(bevel, 'raised'),
-      sheetPadding: 2,
       sectionGap: 2,
       trigger: sunken,
       nativeButton: sunken,

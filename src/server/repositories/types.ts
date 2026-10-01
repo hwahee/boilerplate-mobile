@@ -9,6 +9,8 @@
  */
 import type { Platform } from '@shared/domain/platform';
 import type { Todo, TodoCursorListQuery, TodoListQuery } from '@shared/domain/todo';
+import type { ChatMessage, ChatRoom } from '@shared/domain/chat';
+import type { User } from '@shared/domain/user';
 import type { VersionPolicy } from '@shared/domain/version-policy';
 import type { UtcIsoString } from '@shared/time';
 
@@ -72,6 +74,38 @@ export interface TodoRepository {
   deleteById(id: string, session?: DbSession): Promise<boolean>;
 }
 
+export interface UserRepository {
+  findById(id: string, session?: DbSession): Promise<User | null>;
+  insert(user: User, session?: DbSession): Promise<void>;
+}
+
+export interface ChatRoomRepository {
+  findById(id: string, session?: DbSession): Promise<ChatRoom | null>;
+  /** Creates the room, or gives the existing room with its id this policy. */
+  upsert(room: ChatRoom, session?: DbSession): Promise<void>;
+  /**
+   * Takes the room's next message number (1, 2, 3, …), or `null` when there is
+   * no such room. Call it in the transaction that inserts the message: the row
+   * lock orders concurrent senders, and a rollback gives the number back.
+   */
+  nextSeq(roomId: string, session: DbSession): Promise<number | null>;
+}
+
+export interface ChatMessageRepository {
+  insert(message: ChatMessage, session?: DbSession): Promise<void>;
+  /**
+   * The room's latest `limit` messages sent at or after `since` and numbered
+   * after `afterSeq`, oldest first.
+   */
+  listLatest(
+    roomId: string,
+    options: { limit: number; since?: UtcIsoString; afterSeq?: number },
+    session?: DbSession,
+  ): Promise<ChatMessage[]>;
+  /** Deletes every message older than its room's retention; returns how many. */
+  deleteExpired(now: UtcIsoString, session?: DbSession): Promise<number>;
+}
+
 /** Append-only audit trail, written in the same transaction as the change. */
 export interface AuditLogEntry {
   entityType: string;
@@ -85,7 +119,7 @@ export interface AuditLogRepository {
   append(entry: AuditLogEntry, session?: DbSession): Promise<void>;
 }
 
-// ── Mobile-app support tables (see migrations/0002_mobile.sql) ───────────────
+// ── Mobile-app support tables (see migrations/1001_mobile.sql) ───────────────
 
 /** One row per platform — the single source of truth for update policy. */
 export interface VersionPolicyRepository {

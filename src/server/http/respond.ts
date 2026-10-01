@@ -6,7 +6,8 @@
  *   - deployment-version handshake for browser clients (@shared/api/version)
  *   - the app-version upgrade gate for native clients (426, ./version-gate.ts)
  *   - CORS preflight + response headers
- *   - mapping of domain errors (ValidationError, NotFoundError, …) to HTTP
+ *   - mapping of domain errors (ValidationError, UnauthorizedError, NotFoundError)
+ *     to HTTP
  */
 import type { ApiErrorBody, ApiErrorCode } from '@shared/api/errors';
 import { PLATFORM_HEADER } from '@shared/api/headers';
@@ -29,8 +30,8 @@ export function json(data: unknown, init: ResponseInit = {}): Response {
 
 const ERROR_MESSAGE_KEYS: Record<ApiErrorCode, MessageKey> = {
   VALIDATION_ERROR: 'error.validation',
-  NOT_FOUND: 'error.notFound',
   UNAUTHORIZED: 'error.unauthorized',
+  NOT_FOUND: 'error.notFound',
   VERSION_MISMATCH: 'error.versionMismatch',
   UPGRADE_REQUIRED: 'error.upgradeRequired',
   INTERNAL_ERROR: 'error.internal',
@@ -87,7 +88,7 @@ export function apiRoute<P extends string>(
   const wrap =
     (handler: ApiHandler<P>) =>
     async (req: Bun.BunRequest<P>): Promise<Response> => {
-      const ctx = createRequestContext(req);
+      const ctx = createRequestContext(req, deps.config);
       let response: Response;
       try {
         response =
@@ -144,6 +145,9 @@ function mapError(error: unknown, ctx: RequestContext, log: Logger): Response {
     return errorResponse(400, 'VALIDATION_ERROR', ctx, [
       { path: '', message: 'Request body is not valid JSON', code: 'invalid_json' },
     ]);
+  }
+  if (error instanceof UnauthorizedError) {
+    return errorResponse(401, 'UNAUTHORIZED', ctx);
   }
   if (error instanceof NotFoundError) {
     return errorResponse(404, 'NOT_FOUND', ctx, { resource: error.resource, id: error.id });

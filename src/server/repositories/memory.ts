@@ -10,12 +10,16 @@
  * is process-local and not safe for concurrent interleaved transactions —
  * fine for tests and local development, never used in production.
  */
+import type { ChatMessage, ChatRoom } from '@shared/domain/chat';
 import type { Platform } from '@shared/domain/platform';
 import type { Todo, TodoCursorListQuery, TodoListQuery } from '@shared/domain/todo';
+import type { User } from '@shared/domain/user';
 import type { VersionPolicy } from '@shared/domain/version-policy';
 
 import type {
   AppConfigRepository,
+  ChatMessageRepository,
+  ChatRoomRepository,
   AuditLogEntry,
   AuditLogRepository,
   DbSession,
@@ -24,37 +28,36 @@ import type {
   TodoListCursor,
   TodoRepository,
   UnitOfWork,
+  UserRepository,
   VersionPolicyRepository,
 } from './types';
 
+/** Every table the store holds, i.e. its data fields. */
+type MemoryTables = Omit<MemoryStore, 'snapshot' | 'restore'>;
+
 export class MemoryStore {
   todos = new Map<string, Todo>();
+  users = new Map<string, User>();
   auditLogs: AuditLogEntry[] = [];
   versionPolicies = new Map<Platform, VersionPolicy>();
   appConfig = new Map<string, unknown>();
   appConfigRevision = 0;
   pushTokens = new Map<string, DevicePushToken>();
+  chatRooms = new Map<string, { room: ChatRoom; lastSeq: number }>();
+  /** Per room, in `seq` order. */
+  chatMessages = new Map<string, ChatMessage[]>();
 
-  snapshot() {
-    return {
-      todos: new Map([...this.todos].map(([id, todo]) => [id, { ...todo }])),
-      auditLogs: this.auditLogs.map((entry) => ({ ...entry })),
-      versionPolicies: new Map(
-        [...this.versionPolicies].map(([platform, policy]) => [platform, { ...policy }]),
-      ),
-      appConfig: new Map(this.appConfig),
-      appConfigRevision: this.appConfigRevision,
-      pushTokens: new Map([...this.pushTokens].map(([token, row]) => [token, { ...row }])),
-    };
+  /**
+   * Deep copy of every table. Deliberately not a per-table list: a table added
+   * above is covered by transaction rollback without touching this method, so
+   * it can never be the one table a failed transaction forgets to undo.
+   */
+  snapshot(): MemoryTables {
+    return structuredClone({ ...this });
   }
 
-  restore(snapshot: ReturnType<MemoryStore['snapshot']>): void {
-    this.todos = snapshot.todos;
-    this.auditLogs = snapshot.auditLogs;
-    this.versionPolicies = snapshot.versionPolicies;
-    this.appConfig = snapshot.appConfig;
-    this.appConfigRevision = snapshot.appConfigRevision;
-    this.pushTokens = snapshot.pushTokens;
+  restore(snapshot: MemoryTables): void {
+    Object.assign(this, snapshot);
   }
 }
 
@@ -153,6 +156,20 @@ export function createMemoryTodoRepository(store: MemoryStore): TodoRepository {
   };
 }
 
+export function createMemoryUserRepository(store: MemoryStore): UserRepository {
+  return {
+    async findById(id) {
+      const user = store.users.get(id);
+      return Promise.resolve(user ? { ...user } : null);
+    },
+
+    async insert(user) {
+      store.users.set(user.id, { ...user });
+      return Promise.resolve();
+    },
+  };
+}
+
 export function createMemoryAuditLogRepository(store: MemoryStore): AuditLogRepository {
   return {
     async append(entry) {
@@ -206,6 +223,59 @@ export function createMemoryPushTokenRepository(store: MemoryStore): PushTokenRe
     },
     async listAll() {
       return Promise.resolve([...store.pushTokens.values()].map((row) => ({ ...row })));
+    },
+  };
+}
+
+export function createMemoryChatRoomRepository(store: MemoryStore): ChatRoomRepository {
+  return {
+    async findById(id) {
+      const stored = store.chatRooms.get(id);
+      return Promise.resolve(stored ? structuredClone(stored.room) : null);
+    },
+
+    async upsert(room) {
+      const lastSeq = store.chatRooms.get(room.id)?.lastSeq ?? 0;
+      store.chatRooms.set(room.id, { room: structuredClone(room), lastSeq });
+      return Promise.resolve();
+    },
+
+    async nextSeq(roomId) {
+      const stored = store.chatRooms.get(roomId);
+      if (!stored) return Promise.resolve(null);
+      stored.lastSeq += 1;
+      return Promise.resolve(stored.lastSeq);
+    },
+  };
+}
+
+export function createMemoryChatMessageRepository(store: MemoryStore): ChatMessageRepository {
+  return {
+    async insert(message) {
+      const messages = store.chatMessages.get(message.roomId) ?? [];
+      messages.push(structuredClone(message));
+      store.chatMessages.set(message.roomId, messages);
+      return Promise.resolve();
+    },
+
+    async listLatest(roomId, { limit, since, afterSeq = 0 }) {
+      const matching = (store.chatMessages.get(roomId) ?? []).filter(
+        (message) => message.seq > afterSeq && (since === undefined || message.createdAt >= since),
+      );
+      return Promise.resolve(structuredClone(matching.slice(-limit)));
+    },
+
+    async deleteExpired(now) {
+      let deleted = 0;
+      for (const [roomId, messages] of store.chatMessages) {
+        const retentionMs = store.chatRooms.get(roomId)?.room.policy.retentionMs ?? null;
+        if (retentionMs === null) continue;
+        const cutoff = new Date(Date.parse(now) - retentionMs).toISOString();
+        const kept = messages.filter((message) => message.createdAt >= cutoff);
+        deleted += messages.length - kept.length;
+        store.chatMessages.set(roomId, kept);
+      }
+      return Promise.resolve(deleted);
     },
   };
 }

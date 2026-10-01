@@ -1,0 +1,66 @@
+# Overlay stack (DEV build): a confirm on top of a modal, LIFO dismissal,
+# the resolved value, and the sheet / sidebar presentations.
+# Run with: maestro test apps/mobile/e2e/design-system-overlays.yaml
+appId: com.example.mobileboilerplate.dev
+---
+- launchApp
+- runFlow:
+    when:
+      visible:
+        id: 'boot.ad.skip'
+    commands:
+      - tapOn:
+          id: 'boot.ad.skip'
+- extendedWaitUntil:
+    visible:
+      id: 'todos.screen'
+    timeout: 15000
+
+- tapOn:
+    id: 'tabs.settings'
+- scrollUntilVisible:
+    element:
+      id: 'settings.design-system-link'
+- tapOn:
+    id: 'settings.design-system-link'
+- scrollUntilVisible:
+    element:
+      id: 'design-system.overlay.open-modal'
+
+# Modal → nested confirm → "Keep editing" closes only the confirm.
+- tapOn:
+    id: 'design-system.overlay.open-modal'
+- assertVisible:
+    id: 'design-system.overlay.modal'
+- tapOn:
+    id: 'design-system.overlay.nest'
+- assertVisible:
+    id: 'design-system.overlay.confirm'
+- tapOn:
+    id: 'design-system.overlay.confirm.no'
+- assertNotVisible:
+    id: 'design-system.overlay.confirm'
+- assertVisible:
+    id: 'design-system.overlay.modal'
+
+# Save resolves the awaited value.
+- tapOn:
+    id: 'design-system.overlay.save'
+- assertNotVisible:
+    id: 'design-system.overlay.modal'
+- assertVisible:
+    text: 'saved'
+
+# Sheet and sidebar resolve too.
+- tapOn:
+    id: 'design-system.overlay.open-sheet'
+- tapOn:
+    id: 'design-system.overlay.sheet.apply'
+- assertVisible:
+    text: 'filters applied'
+- tapOn:
+    id: 'design-system.overlay.open-sidebar'
+- tapOn:
+    id: 'design-system.overlay.sidebar.close'
+- assertVisible:
+    text: 'dismissed'

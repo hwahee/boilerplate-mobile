@@ -14,9 +14,12 @@
 
 export type ApiErrorCode =
   | 'VALIDATION_ERROR'
-  | 'NOT_FOUND'
-  /** Missing/invalid credentials on a protected endpoint — HTTP 401. */
+  /**
+   * 401 — the request carries no (valid) credentials: a signed-out caller of a
+   * members-only route, or a missing/invalid admin token.
+   */
   | 'UNAUTHORIZED'
+  | 'NOT_FOUND'
   /** Browser build ≠ server build during a rolling deploy — HTTP 409. */
   | 'VERSION_MISMATCH'
   /** The calling app version is below `minSupportedVersion` — HTTP 426. */

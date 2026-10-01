@@ -9,6 +9,7 @@ import type { CursorPage } from '@shared/api/cursor-pagination';
 import { APP_VERSION_HEADER, PLATFORM_HEADER } from '@shared/api/headers';
 import { VERSION_HEADER } from '@shared/api/version';
 import type { Todo } from '@shared/domain/todo';
+import type { User } from '@shared/domain/user';
 
 import { bridgePubSubToWebSocket, buildApp } from '../app';
 import { loadServerConfig } from '../config';
@@ -38,6 +39,8 @@ const recordingPushSender: PushSender = {
     return Promise.resolve(tokens.map(({ token }) => ({ token, ok: true })));
   },
 };
+/** Session cookie of a signed-in member — writing todos needs one. */
+let memberCookie: string;
 
 beforeAll(async () => {
   const config = loadServerConfig({
@@ -47,6 +50,7 @@ beforeAll(async () => {
     CORS_ORIGINS: ALLOWED_ORIGIN,
     ADMIN_TOKEN,
     VOICE_TOKEN,
+    AUTH_DRIVER: 'dev',
   });
   container = createContainer(config, {
     log: silentLogger,
@@ -59,6 +63,11 @@ beforeAll(async () => {
   baseUrl = String(server.url).replace(/\/$/, '');
   stopBridge = await bridgePubSubToWebSocket(server, container);
   stopWorker = await startWorker(container);
+  const login = await api('POST', '/api/auth/dev-login', {
+    body: { userId: 'tester' },
+    as: 'guest',
+  });
+  memberCookie = cookieFrom(login.headers);
 });
 
 afterAll(async () => {
@@ -79,14 +88,19 @@ beforeEach(async () => {
   state.shuttingDown = false;
 });
 
+/**
+ * Calls the API as the signed-in member by default; `as: 'guest'` sends no
+ * session. An explicit `cookie` header wins over either.
+ */
 async function api<T = unknown>(
   method: string,
   path: string,
-  options: { body?: unknown; headers?: Record<string, string> } = {},
+  options: { body?: unknown; headers?: Record<string, string>; as?: 'member' | 'guest' } = {},
 ): Promise<{ status: number; body: T; headers: Headers }> {
   const response = await fetch(baseUrl + path, {
     method,
     headers: {
+      ...((options.as ?? 'member') === 'member' ? { cookie: memberCookie } : {}),
       ...(options.body !== undefined ? { 'content-type': 'application/json' } : {}),
       ...options.headers,
     },
@@ -266,7 +280,7 @@ describe('todos CRUD', () => {
   test('rejects malformed JSON as a validation error, not a 500', async () => {
     const response = await fetch(`${baseUrl}/api/todos`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', cookie: memberCookie },
       body: '{not json',
     });
     expect(response.status).toBe(400);
@@ -665,5 +679,138 @@ describe('CORS', () => {
 describe('fallback', () => {
   test('unknown paths return 404', async () => {
     expect((await api('GET', '/definitely-not-a-route')).status).toBe(404);
+  });
+
+  test('unknown API paths return the JSON 404 envelope, not the SPA', async () => {
+    const { status, body } = await api<{ error: { code: string; message: string } }>(
+      'GET',
+      '/api/definitely-not-a-route?lang=ko',
+    );
+    expect(status).toBe(404);
+    expect(body.error.code).toBe('NOT_FOUND');
+    expect(body.error.message).toBe('요청한 리소스를 찾을 수 없습니다.');
+  });
+
+  test('a method a known API path does not define also gets the JSON 404 envelope', async () => {
+    const { status, body } = await api<{ error: { code: string } }>('PUT', '/api/todos');
+    expect(status).toBe(404);
+    expect(body.error.code).toBe('NOT_FOUND');
+  });
+});
+
+/** The `name=value` pair a response's Set-Cookie carries, ready to send back. */
+function cookieFrom(headers: Headers): string {
+  return (headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+}
+
+describe('auth (AUTH_DRIVER=dev)', () => {
+  test('sign in → me 200 → sign out → me 401', async () => {
+    const login = await api<User>('POST', '/api/auth/dev-login', { body: { userId: 'alice' } });
+    expect(login.status).toBe(200);
+    expect(login.body).toMatchObject({ id: 'alice', displayName: 'alice' });
+    expect(login.body.createdAt).toMatch(/Z$/); // UTC at the boundary
+    expect(login.headers.get('set-cookie')).toContain('HttpOnly');
+    const cookie = cookieFrom(login.headers);
+
+    const me = await api<User>('GET', '/api/auth/me', { headers: { cookie } });
+    expect(me.status).toBe(200);
+    expect(me.body.id).toBe('alice');
+
+    const logout = await api('POST', '/api/auth/logout', { headers: { cookie } });
+    expect(logout.status).toBe(204);
+    const cleared = cookieFrom(logout.headers);
+    expect(cleared).toBe('session=');
+
+    const after = await api<{ error: { code: string } }>('GET', '/api/auth/me', {
+      headers: { cookie: cleared },
+    });
+    expect(after.status).toBe(401);
+    expect(after.body.error.code).toBe('UNAUTHORIZED');
+  });
+
+  test('the first sign-in creates the user; later ones return the same user', async () => {
+    const first = await api<User>('POST', '/api/auth/dev-login', { body: { userId: 'bob' } });
+    const again = await api<User>('POST', '/api/auth/dev-login', { body: { userId: 'bob' } });
+    expect(again.status).toBe(200);
+    expect(again.body).toEqual(first.body);
+  });
+
+  test('me without a session is 401 with the localized envelope', async () => {
+    const { status, body } = await api<{ error: { code: string; message: string } }>(
+      'GET',
+      '/api/auth/me?lang=ko',
+      { as: 'guest' },
+    );
+    expect(status).toBe(401);
+    expect(body.error).toMatchObject({ code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' });
+  });
+
+  test('a session naming a user that does not exist is 401', async () => {
+    const { status } = await api('GET', '/api/auth/me', { headers: { cookie: 'session=ghost' } });
+    expect(status).toBe(401);
+  });
+
+  test('rejects malformed user ids', async () => {
+    for (const userId of ['', 'Alice', 'has space', 'x'.repeat(51)]) {
+      const { status } = await api('POST', '/api/auth/dev-login', { body: { userId } });
+      expect(status).toBe(400);
+    }
+  });
+
+  test('with AUTH_DRIVER=none the auth routes are not mounted', () => {
+    const config = loadServerConfig({ DB_DRIVER: 'memory', AUTH_DRIVER: 'none' });
+    const app = buildApp(createContainer(config, { log: silentLogger }), state);
+    expect(Object.keys(app.routes).filter((path) => path.startsWith('/api/auth'))).toEqual([]);
+  });
+});
+
+describe('todos: members write, guests only read (AUTH_DRIVER=dev)', () => {
+  test('a guest can list and read todos', async () => {
+    const created = await api<Todo>('POST', '/api/todos', { body: { title: 'Visible' } });
+    expect((await api('GET', '/api/todos', { as: 'guest' })).status).toBe(200);
+    expect((await api('GET', `/api/todos/${created.body.id}`, { as: 'guest' })).status).toBe(200);
+  });
+
+  test('a guest cannot create, update or delete — 401, and nothing changes', async () => {
+    const created = await api<Todo>('POST', '/api/todos', { body: { title: 'Keep me' } });
+    const id = created.body.id;
+
+    const attempts = [
+      await api<{ error: { code: string } }>('POST', '/api/todos', {
+        body: { title: 'Guest todo' },
+        as: 'guest',
+      }),
+      await api<{ error: { code: string } }>('PATCH', `/api/todos/${id}`, {
+        body: { status: 'done' },
+        as: 'guest',
+      }),
+      await api<{ error: { code: string } }>('DELETE', `/api/todos/${id}`, { as: 'guest' }),
+    ];
+    for (const { status, body } of attempts) {
+      expect(status).toBe(401);
+      expect(body.error.code).toBe('UNAUTHORIZED');
+    }
+
+    const list = await api<{ items: Todo[] }>('GET', '/api/todos');
+    expect(list.body.items.map((todo) => [todo.title, todo.status])).toEqual([['Keep me', 'open']]);
+  });
+});
+
+describe('todos without sign-in (AUTH_DRIVER=none)', () => {
+  test('there are no guests to turn away: anyone can write', async () => {
+    const config = loadServerConfig({ DB_DRIVER: 'memory', AUTH_DRIVER: 'none' });
+    const noAuth = createContainer(config, { log: silentLogger });
+    const noAuthServer = Bun.serve({ port: 0, ...buildApp(noAuth, { shuttingDown: false }) });
+    try {
+      const response = await fetch(new URL('/api/todos', noAuthServer.url), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: 'No sign-in needed' }),
+      });
+      expect(response.status).toBe(201);
+    } finally {
+      await noAuthServer.stop(true);
+      await noAuth.dispose();
+    }
   });
 });

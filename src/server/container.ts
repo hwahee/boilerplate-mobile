@@ -24,6 +24,7 @@ import {
   createMemoryPushTokenRepository,
   createMemoryTodoRepository,
   createMemoryUnitOfWork,
+  createMemoryUserRepository,
   createMemoryVersionPolicyRepository,
   MemoryStore,
 } from './repositories/memory';
@@ -32,6 +33,7 @@ import {
   createPostgresAuditLogRepository,
   createPostgresPushTokenRepository,
   createPostgresTodoRepository,
+  createPostgresUserRepository,
   createPostgresVersionPolicyRepository,
 } from './repositories/postgres';
 import type {
@@ -40,9 +42,11 @@ import type {
   PushTokenRepository,
   TodoRepository,
   UnitOfWork,
+  UserRepository,
   VersionPolicyRepository,
 } from './repositories/types';
 import { AppConfigService } from './services/app-config-service';
+import { AuthService } from './services/auth-service';
 import { PushTokenService } from './services/push-token-service';
 import { TodoService } from './services/todo-service';
 import { VersionPolicyService } from './services/version-policy-service';
@@ -63,6 +67,7 @@ export interface Container {
   voiceService(): VoiceService;
   /** Resolves the caller of /api/voice/* — the swap point for real auth. */
   voiceTokenVerifier(): VoiceTokenVerifier;
+  authService(): AuthService;
   pubsub(): PubSub;
   /** Health probe: is the persistence layer reachable? */
   dbPing(): Promise<boolean>;
@@ -112,6 +117,11 @@ export function createContainer(
     config.dbDriver === 'postgres'
       ? createPostgresTodoRepository(postgres())
       : createMemoryTodoRepository(memoryStore()),
+  );
+  const userRepository = lazy<UserRepository>(() =>
+    config.dbDriver === 'postgres'
+      ? createPostgresUserRepository(postgres())
+      : createMemoryUserRepository(memoryStore()),
   );
   const auditLogRepository = lazy<AuditLogRepository>(() =>
     config.dbDriver === 'postgres'
@@ -182,6 +192,15 @@ export function createContainer(
       createStaticVoiceTokenVerifier(config.voiceToken, VOICE_SCOPES),
   );
 
+  const authService = lazy(
+    () =>
+      new AuthService({
+        users: userRepository(),
+        auditLogs: auditLogRepository(),
+        uow: unitOfWork(),
+      }),
+  );
+
   return {
     config,
     log,
@@ -191,6 +210,7 @@ export function createContainer(
     pushTokenService,
     voiceService,
     voiceTokenVerifier,
+    authService,
     pubsub,
     async dbPing() {
       if (config.dbDriver === 'memory') return true;

@@ -12,6 +12,7 @@
  */
 import type { Platform } from '@shared/domain/platform';
 import type { Todo, TodoCursorListQuery, TodoListQuery } from '@shared/domain/todo';
+import type { User } from '@shared/domain/user';
 import type { VersionPolicy } from '@shared/domain/version-policy';
 
 import type {
@@ -24,37 +25,33 @@ import type {
   TodoListCursor,
   TodoRepository,
   UnitOfWork,
+  UserRepository,
   VersionPolicyRepository,
 } from './types';
 
+/** Every table the store holds, i.e. its data fields. */
+type MemoryTables = Omit<MemoryStore, 'snapshot' | 'restore'>;
+
 export class MemoryStore {
   todos = new Map<string, Todo>();
+  users = new Map<string, User>();
   auditLogs: AuditLogEntry[] = [];
   versionPolicies = new Map<Platform, VersionPolicy>();
   appConfig = new Map<string, unknown>();
   appConfigRevision = 0;
   pushTokens = new Map<string, DevicePushToken>();
 
-  snapshot() {
-    return {
-      todos: new Map([...this.todos].map(([id, todo]) => [id, { ...todo }])),
-      auditLogs: this.auditLogs.map((entry) => ({ ...entry })),
-      versionPolicies: new Map(
-        [...this.versionPolicies].map(([platform, policy]) => [platform, { ...policy }]),
-      ),
-      appConfig: new Map(this.appConfig),
-      appConfigRevision: this.appConfigRevision,
-      pushTokens: new Map([...this.pushTokens].map(([token, row]) => [token, { ...row }])),
-    };
+  /**
+   * Deep copy of every table. Deliberately not a per-table list: a table added
+   * above is covered by transaction rollback without touching this method, so
+   * it can never be the one table a failed transaction forgets to undo.
+   */
+  snapshot(): MemoryTables {
+    return structuredClone({ ...this });
   }
 
-  restore(snapshot: ReturnType<MemoryStore['snapshot']>): void {
-    this.todos = snapshot.todos;
-    this.auditLogs = snapshot.auditLogs;
-    this.versionPolicies = snapshot.versionPolicies;
-    this.appConfig = snapshot.appConfig;
-    this.appConfigRevision = snapshot.appConfigRevision;
-    this.pushTokens = snapshot.pushTokens;
+  restore(snapshot: MemoryTables): void {
+    Object.assign(this, snapshot);
   }
 }
 
@@ -149,6 +146,20 @@ export function createMemoryTodoRepository(store: MemoryStore): TodoRepository {
 
     async deleteById(id) {
       return Promise.resolve(store.todos.delete(id));
+    },
+  };
+}
+
+export function createMemoryUserRepository(store: MemoryStore): UserRepository {
+  return {
+    async findById(id) {
+      const user = store.users.get(id);
+      return Promise.resolve(user ? { ...user } : null);
+    },
+
+    async insert(user) {
+      store.users.set(user.id, { ...user });
+      return Promise.resolve();
     },
   };
 }

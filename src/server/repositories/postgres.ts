@@ -18,6 +18,7 @@ import type {
   DevicePushToken,
   PushTokenRepository,
   TodoRepository,
+  UserRepository,
   VersionPolicyRepository,
 } from './types';
 
@@ -167,6 +168,35 @@ export function createPostgresTodoRepository(db: PostgresDb): TodoRepository {
   };
 }
 
+interface UserRow {
+  id: string;
+  display_name: string;
+  created_at: Date;
+}
+
+export function createPostgresUserRepository(db: PostgresDb): UserRepository {
+  return {
+    async findById(id, session) {
+      const sql = sessionSql(db, session);
+      const rows = await sql<UserRow[]>`
+        SELECT id, display_name, created_at FROM users WHERE id = ${id}
+      `;
+      const row = rows[0];
+      return row
+        ? { id: row.id, displayName: row.display_name, createdAt: toUtcIso(row.created_at) }
+        : null;
+    },
+
+    async insert(user, session) {
+      const sql = sessionSql(db, session);
+      await sql`
+        INSERT INTO users (id, display_name, created_at)
+        VALUES (${user.id}, ${user.displayName}, ${user.createdAt})
+      `;
+    },
+  };
+}
+
 export function createPostgresAuditLogRepository(db: PostgresDb): AuditLogRepository {
   return {
     async append(entry: AuditLogEntry, session?: DbSession) {
@@ -185,7 +215,7 @@ export function createPostgresAuditLogRepository(db: PostgresDb): AuditLogReposi
   };
 }
 
-// ── Mobile-app support tables (migrations/0002_mobile.sql) ───────────────────
+// ── Mobile-app support tables (migrations/1001_mobile.sql) ───────────────────
 
 interface VersionPolicyRow {
   platform: Platform;
@@ -250,7 +280,7 @@ export function createPostgresAppConfigRepository(db: PostgresDb): AppConfigRepo
         SELECT revision FROM app_config_revision
       `;
       // Only base-scope rows for now; platform / min_app_version overrides
-      // are a schema-ready extension (see migrations/0002_mobile.sql).
+      // are a schema-ready extension (see migrations/1001_mobile.sql).
       const rows = await sql<{ key: string; value: unknown }[]>`
         SELECT key, value FROM app_config
          WHERE platform IS NULL AND min_app_version IS NULL

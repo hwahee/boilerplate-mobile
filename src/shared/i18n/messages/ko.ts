@@ -30,6 +30,7 @@ export const ko: Record<MessageKey, string> = {
   'todos.description': '풀스택 전체를 관통하는 작은 데모 도메인입니다.',
   'todos.createLabel': '새 할 일 제목',
   'todos.createPlaceholder': '무엇을 해야 하나요?',
+  'todos.guestHint': '로그인하면 할 일을 추가하고, 완료 표시하고, 삭제할 수 있습니다.',
   'todos.createSubmit': '할 일 추가',
   'todos.empty': '아직 아무것도 없습니다. 위에서 첫 할 일을 추가해 보세요.',
   'todos.filterLabel': '상태로 필터',
@@ -65,6 +66,13 @@ export const ko: Record<MessageKey, string> = {
   'designSystem.colorInput': '색상 입력 (팔레트)',
   'designSystem.overlays': '오버레이 (모달 / 시트 / 사이드바)',
 
+  'auth.userId': '아이디',
+  'auth.userIdPlaceholder': '아이디',
+  'auth.userIdInvalid': '영문 소문자, 숫자, _, -로 1–50자를 입력하세요.',
+  'auth.signIn': '로그인',
+  'auth.signOut': '로그아웃',
+  'auth.signedInAs': '{name}(으)로 로그인됨',
+
   'notFound.title': '페이지를 찾을 수 없습니다',
   'notFound.goHome': '홈으로 이동',
 
@@ -74,8 +82,8 @@ export const ko: Record<MessageKey, string> = {
   'voice.todo.summary.many': '남은 할 일이 {count}개 있어요.',
 
   'error.validation': '요청에 잘못된 데이터가 포함되어 있습니다.',
+  'error.unauthorized': '로그인이 필요합니다.',
   'error.notFound': '요청한 리소스를 찾을 수 없습니다.',
-  'error.unauthorized': '이 작업을 수행할 권한이 없습니다.',
   'error.upgradeRequired': '지원이 종료된 앱 버전입니다. 앱을 업데이트해 주세요.',
   'error.internal': '예기치 않은 오류가 발생했습니다. 다시 시도해 주세요.',
   'error.versionMismatch': '새 버전이 배포되었습니다. 페이지를 새로고침합니다.',

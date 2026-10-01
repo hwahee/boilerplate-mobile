@@ -11,10 +11,13 @@ export class NotFoundError extends Error {
   }
 }
 
-/** Missing/invalid credentials for a protected (admin) endpoint → HTTP 401. */
+/**
+ * No (valid) credentials → HTTP 401: an operation that needs a signed-in user
+ * called without one, or an admin endpoint called without its bearer token.
+ */
 export class UnauthorizedError extends Error {
   constructor() {
-    super('Unauthorized');
+    super('authentication required');
     this.name = 'UnauthorizedError';
   }
 }

@@ -8,6 +8,8 @@ import { BrowserRouter, NavLink, Route, Routes } from 'react-router';
 
 import { SUPPORTED_LOCALES, type Locale } from '@shared/i18n';
 
+import { isRetryableError } from './api/http';
+import { AccountControls } from './auth/account-controls';
 import { LocaleProvider, useI18n } from './i18n/locale-context';
 import { DesignSystemPage } from './pages/design-system-page';
 import { NotFoundPage } from './pages/not-found-page';
@@ -22,7 +24,8 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
-      retry: 1,
+      // One retry, and only when it could change the answer (never on a 4xx).
+      retry: (failureCount, error) => failureCount < 1 && isRetryableError(error),
     },
   },
 });
@@ -86,6 +89,7 @@ function Header() {
           onChange={setLocale}
           testId={TESTID.app.localeSelect}
         />
+        <AccountControls />
       </div>
     </header>
   );

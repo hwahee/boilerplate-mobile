@@ -9,6 +9,7 @@
  */
 import type { Platform } from '@shared/domain/platform';
 import type { Todo, TodoCursorListQuery, TodoListQuery } from '@shared/domain/todo';
+import type { User } from '@shared/domain/user';
 import type { VersionPolicy } from '@shared/domain/version-policy';
 import type { UtcIsoString } from '@shared/time';
 
@@ -72,6 +73,11 @@ export interface TodoRepository {
   deleteById(id: string, session?: DbSession): Promise<boolean>;
 }
 
+export interface UserRepository {
+  findById(id: string, session?: DbSession): Promise<User | null>;
+  insert(user: User, session?: DbSession): Promise<void>;
+}
+
 /** Append-only audit trail, written in the same transaction as the change. */
 export interface AuditLogEntry {
   entityType: string;
@@ -85,7 +91,7 @@ export interface AuditLogRepository {
   append(entry: AuditLogEntry, session?: DbSession): Promise<void>;
 }
 
-// ── Mobile-app support tables (see migrations/0002_mobile.sql) ───────────────
+// ── Mobile-app support tables (see migrations/1001_mobile.sql) ───────────────
 
 /** One row per platform — the single source of truth for update policy. */
 export interface VersionPolicyRepository {

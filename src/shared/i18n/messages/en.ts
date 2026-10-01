@@ -34,6 +34,7 @@ export const en = {
   'todos.description': 'A small demo domain exercising the full stack.',
   'todos.createLabel': 'New todo title',
   'todos.createPlaceholder': 'What needs to be done?',
+  'todos.guestHint': 'Sign in to add, check off and delete todos.',
   'todos.createSubmit': 'Add todo',
   'todos.empty': 'Nothing here yet. Add your first todo above.',
   'todos.filterLabel': 'Filter by status',
@@ -69,6 +70,13 @@ export const en = {
   'designSystem.colorInput': 'Color input (palette)',
   'designSystem.overlays': 'Overlays (modal / sheet / sidebar)',
 
+  'auth.userId': 'User ID',
+  'auth.userIdPlaceholder': 'user id',
+  'auth.userIdInvalid': 'Use 1–50 lowercase letters, digits, _ or -.',
+  'auth.signIn': 'Sign in',
+  'auth.signOut': 'Sign out',
+  'auth.signedInAs': 'Signed in as {name}',
+
   'notFound.title': 'Page not found',
   'notFound.goHome': 'Go to home',
 
@@ -80,8 +88,8 @@ export const en = {
   'voice.todo.summary.many': 'You have {count} todos left.',
 
   'error.validation': 'The request contains invalid data.',
+  'error.unauthorized': 'Please sign in to continue.',
   'error.notFound': 'The requested resource was not found.',
-  'error.unauthorized': 'You are not allowed to perform this action.',
   'error.upgradeRequired': 'This app version is no longer supported. Please update the app.',
   'error.internal': 'An unexpected error occurred. Please try again.',
   'error.versionMismatch':

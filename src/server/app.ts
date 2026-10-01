@@ -14,6 +14,8 @@ import {
   adminVersionPolicyRoute,
 } from './routes/admin';
 import { appConfigRoute } from './routes/app-config';
+import { apiFallbackRoutes } from './routes/api-fallback';
+import { authRoutes } from './routes/auth';
 import { livenessRoute, readinessRoute, type AppState } from './routes/health';
 import { pushTokenRoutes, pushTokenUnregisterRoute } from './routes/push-tokens';
 import { todoCollectionRoutes, todoItemRoutes } from './routes/todos';
@@ -51,6 +53,9 @@ export function buildApp(container: Container, state: AppState) {
       '/api/admin/version-policy/:platform': adminVersionPolicyRoute(container, deps),
       '/api/admin/app-config/:key': adminAppConfigRoute(container, deps),
       '/api/admin/push/broadcast': adminPushBroadcastRoute(container, deps),
+      ...(container.config.authDriver === 'dev' ? authRoutes(container, deps) : {}),
+      /** Unknown API paths/methods → JSON 404, never the SPA's index.html. */
+      '/api/*': apiFallbackRoutes(deps),
       /** WebSocket endpoint: pushes `{action, todoId}` on every todo change. */
       '/ws': (req: Bun.BunRequest<'/ws'>, server: Bun.Server<undefined>) =>
         server.upgrade(req)

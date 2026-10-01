@@ -30,7 +30,7 @@ const SEED_TODOS = [
   { id: '00000000-0000-4000-8000-000000000005', title: 'Ship something great', status: 'open' },
 ] as const;
 
-// ── Mobile layer (migrations/0002_mobile.sql) ───────────────────────────────
+// ── Mobile layer (migrations/1001_mobile.sql) ───────────────────────────────
 
 /** Extra rows so the app's infinite scroll actually pages (limit defaults to 20). */
 const SEED_MOBILE_TODOS = [

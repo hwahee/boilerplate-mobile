@@ -21,7 +21,8 @@ src/
 │                    #   todo / version-policy / app-config / push-token / platform
 ├── server/          # Bun server (API + 클라이언트 서빙 + 워커)
 │   ├── http/        # 라우트 공통 미들웨어 (CORS, 버전, 426 게이트, 에러, locale)
-│   ├── routes/      # 엔드포인트 정의 (todos / version-policy / app-config / push / admin)
+│   ├── auth/        # 요청 신원 — AUTH_DRIVER별로 "누가 호출했나"를 읽는 유일한 자리
+│   ├── routes/      # 엔드포인트 정의 (todos / auth / version-policy / app-config / push / admin)
 │   ├── services/    # 비즈니스 로직 (트랜잭션 경계가 여기서 드러남)
 │   ├── repositories/# 영속성 계약 + postgres/in-memory 구현
 │   ├── push/        # 푸시 발송 파사드 (dry-run / expo 드라이버)
@@ -30,6 +31,7 @@ src/
 │   └── container.ts # 컴포지션 루트 — 프로세스당 싱글톤 관리
 └── client/          # React SPA
     ├── api/         # ★ 모든 API가 endpoints.ts 한 곳에 문서화되어 모임
+    ├── auth/        # 헤더의 로그인/로그아웃 컨트롤
     ├── ui/          # 디자인 시스템 컴포넌트
     ├── styles/      # 디자인 토큰 (라이트/다크 × 디자인 A/B)
     ├── theme/ i18n/ # 테마·로케일 컨텍스트
@@ -192,6 +194,42 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
 허용 origin은 `CORS_ORIGINS` 환경 변수(콤마 구분)로만 제어합니다. 와일드카드 없음,
 암묵적 허용 없음 (`src/server/http/cors.ts`).
 
+### 인증 (회원)
+
+확정된 전제는 [CLAUDE.md](CLAUDE.md)에 있습니다: 비밀번호를 다루지 않고, 개발 단계는 아이디만으로
+로그인하며, 실제 인증은 나중에 구글 같은 외부 로그인에 위임합니다.
+
+- **드라이버 교체**: `AUTH_DRIVER=none|dev` (미설정 시 `none`, `.env.example`은 `dev`).
+  - `none` — 로그인 없음. `/api/auth/*`가 마운트되지 않아 JSON 404이고, 헤더 컨트롤도 숨겨집니다.
+  - `dev` — 아이디만으로 로그인. **처음 로그인한 아이디가 곧 가입**입니다(`users` 행 + 감사 로그).
+    아이디를 알면 누구나 그 계정으로 들어가므로 `APP_ENV=production`에서는 부팅을 거부합니다.
+  - 외부 로그인은 드라이버 하나를 더하는 것으로 붙입니다 — 쿠키에 무엇을 담고 어떻게 검증하는지는
+    `src/server/auth/session.ts` 한 곳에만 있습니다.
+- **API**: `POST /api/auth/dev-login {userId}` → `User` + 세션 쿠키, `GET /api/auth/me` →
+  `User | 401`, `POST /api/auth/logout` → 204. 상세는 `src/client/api/endpoints.ts`의 `authApi`.
+- **신원 전달**: 라우트는 `ctx.caller`(`src/server/http/context.ts`)만 읽습니다 — `member`(로그인),
+  `guest`(로그인 기능은 있지만 로그인 안 함), `anyone`(`none` — 구분 없음). 클라이언트의
+  `useCaller()`가 같은 셋(+ 로딩 중 `unknown`)을 돌려줍니다.
+- **게스트가 할 수 있는 일**: **접속을 끊은 뒤에도 의미가 남는 행동은 회원만**, 접속해 있는 동안에만
+  의미가 있는 행동(예: 게임 한 판의 점수)은 게스트도 합니다. 조회는 게스트에게도 열려 있습니다.
+  회원 전용 행동은 핸들러 첫 줄의 `requireMember(ctx.caller)`로 선언하며, 게스트면 로컬라이즈된
+  401 `UNAUTHORIZED`가 됩니다. Todos는 저장되는 데이터이므로 생성·수정·삭제가 회원 전용이고,
+  화면도 게스트에게는 쓰기 UI 대신 안내를 보여 줍니다. 게스트 상태는 서버가 아닌 탭 안에 두므로
+  게스트 식별자는 없습니다.
+- **쿠키**: httpOnly(페이지 스크립트가 못 읽음) + `SameSite=Lax`, **same-origin 전제**입니다. CORS에서
+  `Access-Control-Allow-Credentials`를 켜지 않으므로 `CORS_ORIGINS`의 교차 출처 호출자에게는
+  쿠키가 전달되지 않습니다.
+- **아직 없는 것**: todos와 사용자의 연결(소유자 — 지금은 회원 모두가 한 목록을 함께 씀), 감사
+  로그의 행위자, 서명된 쿠키, 외부 로그인.
+- **모바일 앱**: 앱에는 **아직 로그인 화면이 없습니다.** 그래서 서버 설정에 따라 동작이 다릅니다.
+  - `none`: 앱의 모든 기능이 지금처럼 동작합니다.
+  - `dev`(`.env.example`의 값): 조회는 되지만, todos 생성·수정·삭제는 로컬라이즈된 401 `UNAUTHORIZED`가
+    되어 앱에 오류로 표시됩니다. 앱으로 쓰기까지 개발하려면 `.env`에서 `AUTH_DRIVER=none`으로 두세요.
+  - 음성 인텐트(`/api/voice/*`)는 `VOICE_TOKEN`이 자격 증명이므로 세션 쿠키와 무관하게 동작합니다.
+  - 앱 로그인을 붙일 때 서버 쪽 변경은 없습니다. RN의 `fetch`는 네이티브 쿠키 저장소(iOS
+    `NSHTTPCookieStorage`, Android OkHttp)에 쿠키를 보관하므로, `dev-login` → `me` 흐름을 화면으로
+    만들기만 하면 됩니다.
+
 ### i18n
 
 `@shared/i18n` 파사드를 서버(에러 메시지 — `Accept-Language`/`?lang=` 협상)와
@@ -206,9 +244,12 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
 - **TanStack Query**: 목록 조회는 로딩/에러(재시도 버튼)/데이터/빈 상태를 모두 처리하고,
   mutation은 성공 시 목록 캐시를 invalidate합니다. 상태 토글은 **optimistic update**
   (스냅샷 → 즉시 반영 → 실패 시 롤백 → settle 시 재동기화)로 구현되어 있습니다.
+  실패한 조회는 1회 재시도하되, 4xx(400/401/404 등 — 다시 물어도 답이 같은 실패)는
+  재시도하지 않습니다 (`isRetryableError`, `src/client/api/http.ts`).
 - **최소 상태**: 페이지/필터/정렬은 URL 쿼리에서 파생, 서버 데이터는 쿼리 캐시에만 존재.
   로컬 `useState`는 "아직 제출 안 된 폼 입력"뿐입니다.
-- **라우팅**: react-router (BrowserRouter). 서버의 SPA 캐치올이 딥링크를 지원합니다.
+- **라우팅**: react-router (BrowserRouter). 서버의 SPA 캐치올이 딥링크를 지원합니다
+  (`/api/*`는 제외 — 없는 API 경로는 JSON 404).
 - **디자인 시스템**: 토큰 3계층(원시 → 디자인 치수 → 시맨틱 컬러)으로 구성되며
   `/design-system` 페이지에서 전부 확인할 수 있습니다. `<html>`의 `data-theme`
   (light/dark)와 `data-design`(A=심미성/B=시인성) 속성만으로 전환됩니다 — 헤더의 토글
@@ -231,9 +272,13 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
 
 구체적인 규칙:
 
-- **파일 추가 > 파일 수정**: 새 스키마는 `migrations/0002_mobile.sql`(0001은 손대지 않음),
+- **파일 추가 > 파일 수정**: 새 스키마는 `migrations/1001_mobile.sql`(업스트림 마이그레이션은
+  손대지 않음. 러너가 숫자 접두사로 적용 여부를 판단하므로 업스트림 번호와 겹치지 않게 1000번대를 씀),
   커서 페이지네이션은 `@shared/api/cursor-pagination`(기존 `pagination`은 유지),
   앱 UI 문자열은 `apps/mobile/src/i18n/messages`(공통 카탈로그는 서버가 쓰는 에러 메시지만).
+  - 이 파일은 예전에 `0002_mobile.sql`이었습니다. 그때 만든 로컬 DB에는 버전 `0002`가 이미
+    기록되어 있어서, 업스트림의 `0002_users`를 건너뛰고 `1001_mobile`은 테이블 중복으로 실패합니다.
+    `docker compose down -v && bun run db:setup`으로 한 번 다시 만드세요.
 - **기존 계약 불변**: 웹 클라이언트가 쓰는 `Page<T>` 응답, `X-App-Version` 스큐 검사,
   기존 라우트/테스트는 그대로입니다. 앱용 동작은 앱만 보내는 신호(`X-Platform`, `limit`)로
   분기합니다.
@@ -307,6 +352,13 @@ bun run dev:mobile        # Expo 개발 서버
   서명 자격 증명이 필요하므로 `native-build.yml`(수동/태그 트리거)로 분리했습니다.
 - **husky + lint-staged**: pre-commit에 staged 파일 lint/format, pre-push에
   `bun run check` 전체 게이트.
+- **React Compiler**: 배포 빌드는 Bun 내장 React Compiler(실험 기능)로 `.tsx` 컴포넌트를 컴파일해,
+  입력이 그대로인 JSX·계산값을 재사용하는 코드를 빌드 시점에 넣습니다. 그래서 속도만을 위한
+  `memo`/`useMemo`/`useCallback`은 직접 쓰지 않습니다. 개발 서버와 `.ts` 파일(훅 등)은 컴파일되지
+  않으므로 동일성에 기대는 memo(이펙트 의존성, context로 내려가는 함수, `.ts` 훅의 반환값)는 계속 씁니다.
+  컴파일러가 빌드에서 빠지면 `bun run build`가 실패합니다. 컴파일러는 지원하지 않는 문법이나 React 규칙
+  위반이 있는 컴포넌트를 경고 없이 건너뛰므로, `bun run compiler:report`로 컴파일되지 않은 컴포넌트·훅을
+  확인합니다. 원칙은 [CLAUDE.md](CLAUDE.md)에 있습니다.
 - **빌드**: Bun 번들러 단독 사용. `bun run build` 한 번으로 서버+클라이언트+마이그레이터가
   `dist/`에 떨어집니다. 개발 모드는 Bun의 HTML import 기반 HMR.
 - **Docker**:
@@ -324,12 +376,15 @@ bun run dev:mobile        # Expo 개발 서버
 
 ## 테스트 전략
 
-- **단위**: 비즈니스 로직(`TodoService`, `VersionPolicyService`, `AppConfigService`,
+- **단위**: 비즈니스 로직(`TodoService`, `AuthService`, `VersionPolicyService`, `AppConfigService`,
   `PushTokenService`) — 트랜잭션 롤백, 이벤트 발행, 캐시, 성공/실패 케이스. 공통 계약의
   순수 함수(semver, 커서 인코딩, 업데이트 판정, 원격 설정 파싱)도 여기서 고정됩니다.
+  설정 가드(`AUTH_DRIVER=dev` × 운영)와 세션 쿠키 해석도 단위로 검증합니다.
 - **통합**: 실제 앱을 임시 포트에 띄워 HTTP로 검증 — CRUD, 두 페이지네이션 모드,
-  검증 실패(400)와 로컬라이즈된 메시지, 404, 배포 스큐(409), 업그레이드 게이트(426),
-  원격 설정 ETag/304 + WS push, 관리자 인증(401), 푸시 브로드캐스트, CORS, 헬스체크.
+  검증 실패(400)와 로컬라이즈된 메시지, 404(없는 API 경로·메서드 포함), 배포 스큐(409),
+  업그레이드 게이트(426), 원격 설정 ETag/304 + WS push, 관리자 인증(401), 푸시 브로드캐스트,
+  CORS, 헬스체크, 로그인 → `me` 200 → 로그아웃 → `me` 401, 게스트의 todos 쓰기 401
+  (`none`에서는 허용).
 - **앱 로직**: API 클라이언트(헤더·에러 매핑), 부트 상태 머신, 원격 설정 스토어는
   UI 없이 순수 로직으로 테스트됩니다. 화면 단위 플로우는 Maestro(E2E)가 담당합니다.
 - 전부 in-memory 드라이버로 돌므로 **`bun test` 하나로, 외부 환경 없이** 실행됩니다.

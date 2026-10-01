@@ -1,9 +1,14 @@
--- 0002_mobile: tables the mobile app layer needs on top of the base schema.
+-- 1001_mobile: tables the mobile app layer needs on top of the base schema.
 --
--- Kept as a separate migration on purpose: 0001 is the boilerplate's own
--- schema and stays untouched, so upstream boilerplate changes to it merge
--- cleanly. Timestamps are timestamptz; the application always writes UTC
--- (see src/shared/time).
+-- Kept as a separate migration on purpose: the boilerplate's own migrations
+-- stay untouched, so upstream boilerplate changes to them merge cleanly. The
+-- 1000-series number keeps it out of upstream's sequence — the runner keys on
+-- the numeric prefix, so a shared number (this file was once 0002, then
+-- upstream added 0002_users) would make one of the two silently skipped.
+-- Nothing here references upstream tables, so it may apply after any of them.
+--
+-- Timestamps are timestamptz; the application always writes UTC (see
+-- src/shared/time).
 
 -- ── App version / update policy (single source of truth) ────────────────────
 -- One row per platform. Raising min_supported_version is the ONLY sanctioned

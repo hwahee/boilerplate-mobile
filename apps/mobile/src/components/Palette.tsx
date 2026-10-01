@@ -10,9 +10,9 @@
  *   L3 system picker (iOS only — Android has none; the button is hidden)
  *
  * What changes on a phone, and why:
- *   - Anchored popover → bottom sheet (TemporarySheet until the #8 overlay
- *     port brings BottomSheet). A phone has no room beside the trigger, and the
- *     hex field needs space above the keyboard.
+ *   - Anchored popover → a BottomSheet on the overlay stack (components/overlay).
+ *     A phone has no room beside the trigger, and the hex field needs space
+ *     above the keyboard. Inside another overlay it simply stacks on top.
  *   - Hover tooltip → press-and-hold callout. Touch has no hover, so the name
  *     and the exact returned string show while the finger is DOWN, above the
  *     finger; releasing commits and closes, sliding off cancels.
@@ -25,7 +25,7 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { useRef, useState } from 'react';
-import { Animated, Pressable, ScrollView, View } from 'react-native';
+import { Animated, Pressable, View } from 'react-native';
 
 import { contrastRatio, hexColor, parseHexColor, type HexColor } from '@shared/color';
 import {
@@ -39,10 +39,12 @@ import { useMotionProgress } from '../theme/motion';
 import { paletteSkin, touchSlop, type PaletteSkin } from '../theme/skin';
 import { useTheme } from '../theme/ThemeProvider';
 import { AppText } from './AppText';
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- live content: the sheet shows this component's draft, error and callout state as it changes
+import { BottomSheet } from './overlay/declarative';
 import { placeCallout, type Box } from './palette/callout';
 import { Checker } from './palette/Checker';
 import { nativeColorPickerAvailable, pickNativeColor } from './palette/native-picker';
-import { TemporarySheet } from './palette/TemporarySheet';
+import { ScrollBox, useInsideScrollBox } from './ScrollBox';
 import { TextField } from './TextField';
 
 export interface PaletteProps {
@@ -220,21 +222,115 @@ export function Palette({
         <Ionicons name="chevron-down" size={tokens.type.body} color={colors.textMuted} />
       </Pressable>
 
-      <TemporarySheet
-        visible={open}
+      {/* The sheet's content keeps re-rendering from this component's live
+          state (draft, error, callout) — the declarative door's case 2. It
+          owns its scrolling (scrollable={false}) so the callout can float
+          above the scroll region instead of being clipped by it. */}
+      <BottomSheet
+        open={open}
         onClose={close}
         title={label}
         testID={`${testID}.sheet`}
-        surfaceStyle={skin.sheet}
-        padding={skin.sheetPadding}
+        scrollable={false}
+        footer={
+          allowCustom || (contrast !== null && contrast < MIN_CONTRAST) ? (
+            <View style={{ width: '100%', gap: skin.sectionGap }}>
+              {allowCustom ? (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'flex-end',
+                    gap: tokens.spacing.sm,
+                    paddingTop: tokens.spacing.sm,
+                    borderTopWidth: tokens.borderWidth,
+                    borderTopColor: colors.border,
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <TextField
+                      testID={`${testID}.hex`}
+                      label={t('palette.hexLabel')}
+                      value={hexDraft ?? value}
+                      error={hexError}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="done"
+                      onChangeText={(text) => {
+                        setHexDraft(text);
+                        setHexError(null);
+                      }}
+                      onBlur={commitHex}
+                      onSubmitEditing={commitHex}
+                    />
+                  </View>
+                  {nativeColorPickerAvailable ? (
+                    <Pressable
+                      testID={`${testID}.native`}
+                      onPress={() => void openNativePicker()}
+                      hitSlop={touchSlop(tokens, tokens.controlHeight)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('palette.customColor')}
+                      style={({ pressed }) => ({
+                        width: tokens.controlHeight,
+                        height: tokens.controlHeight,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderWidth: tokens.borderWidth,
+                        borderColor: colors.border,
+                        borderRadius: tokens.radius.control,
+                        backgroundColor: pressed ? colors.surfaceAlt : colors.surface,
+                        // Keep the field's error line from pushing the button down.
+                        marginBottom: hexError ? tokens.type.caption * 1.4 + tokens.spacing.xs : 0,
+                        ...skin.nativeButton,
+                      })}
+                    >
+                      <Ionicons
+                        name="color-palette-outline"
+                        size={Math.round(tokens.controlHeight * 0.55)}
+                        color={colors.text}
+                      />
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {contrast !== null && contrast < MIN_CONTRAST ? (
+                <View
+                  testID={`${testID}.contrast`}
+                  accessibilityRole="alert"
+                  accessibilityLiveRegion="polite"
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: tokens.spacing.sm,
+                    paddingHorizontal: tokens.spacing.sm,
+                  }}
+                >
+                  <Ionicons
+                    name="warning-outline"
+                    size={tokens.type.caption}
+                    color={colors.warning}
+                  />
+                  <AppText variant="caption" color={colors.warning} style={{ flex: 1 }}>
+                    {t('palette.contrastWarning', {
+                      // Truncated, not rounded: 4.46 must not read as "4.5:1 — below 4.5".
+                      ratio: (Math.floor(contrast * 10) / 10).toFixed(1),
+                      minimum: MIN_CONTRAST.toFixed(1),
+                    })}
+                  </AppText>
+                </View>
+              ) : null}
+            </View>
+          ) : undefined
+        }
       >
         <View
           ref={bodyRef}
           onLayout={(event) => setBodyWidth(event.nativeEvent.layout.width)}
-          style={{ flexShrink: 1, gap: skin.sectionGap }}
+          style={{ flexShrink: 1 }}
         >
-          <ScrollView
-            contentContainerStyle={{ gap: skin.sectionGap, padding: tokens.spacing.sm }}
+          <ScrollBox
+            contentContainerStyle={{ gap: skin.sectionGap }}
             keyboardShouldPersistTaps="handled"
             // Scrolling cancels the press, which also hides the callout.
             onScrollBeginDrag={hideCallout}
@@ -262,89 +358,7 @@ export function Palette({
                 </View>
               </View>
             ))}
-          </ScrollView>
-
-          {allowCustom ? (
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'flex-end',
-                gap: tokens.spacing.sm,
-                padding: tokens.spacing.sm,
-                borderTopWidth: tokens.borderWidth,
-                borderTopColor: colors.border,
-              }}
-            >
-              <View style={{ flex: 1 }}>
-                <TextField
-                  testID={`${testID}.hex`}
-                  label={t('palette.hexLabel')}
-                  value={hexDraft ?? value}
-                  error={hexError}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  returnKeyType="done"
-                  onChangeText={(text) => {
-                    setHexDraft(text);
-                    setHexError(null);
-                  }}
-                  onBlur={commitHex}
-                  onSubmitEditing={commitHex}
-                />
-              </View>
-              {nativeColorPickerAvailable ? (
-                <Pressable
-                  testID={`${testID}.native`}
-                  onPress={() => void openNativePicker()}
-                  hitSlop={touchSlop(tokens, tokens.controlHeight)}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('palette.customColor')}
-                  style={({ pressed }) => ({
-                    width: tokens.controlHeight,
-                    height: tokens.controlHeight,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderWidth: tokens.borderWidth,
-                    borderColor: colors.border,
-                    borderRadius: tokens.radius.control,
-                    backgroundColor: pressed ? colors.surfaceAlt : colors.surface,
-                    // Keep the field's error line from pushing the button down.
-                    marginBottom: hexError ? tokens.type.caption * 1.4 + tokens.spacing.xs : 0,
-                    ...skin.nativeButton,
-                  })}
-                >
-                  <Ionicons
-                    name="color-palette-outline"
-                    size={Math.round(tokens.controlHeight * 0.55)}
-                    color={colors.text}
-                  />
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
-
-          {contrast !== null && contrast < MIN_CONTRAST ? (
-            <View
-              testID={`${testID}.contrast`}
-              accessibilityRole="alert"
-              accessibilityLiveRegion="polite"
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: tokens.spacing.sm,
-                paddingHorizontal: tokens.spacing.sm,
-              }}
-            >
-              <Ionicons name="warning-outline" size={tokens.type.caption} color={colors.warning} />
-              <AppText variant="caption" color={colors.warning} style={{ flex: 1 }}>
-                {t('palette.contrastWarning', {
-                  // Truncated, not rounded: 4.46 must not read as "4.5:1 — below 4.5".
-                  ratio: (Math.floor(contrast * 10) / 10).toFixed(1),
-                  minimum: MIN_CONTRAST.toFixed(1),
-                })}
-              </AppText>
-            </View>
-          ) : null}
+          </ScrollBox>
 
           {/* One callout per sheet, outside the ScrollView so the grid edges
               (where it is needed most) can't clip it. Decorative: the swatch's
@@ -386,7 +400,7 @@ export function Palette({
             </View>
           ) : null}
         </View>
-      </TemporarySheet>
+      </BottomSheet>
     </View>
   );
 }
@@ -435,7 +449,9 @@ function Swatch({ swatch, selected, skin, testID, onPressIn, onPressOut, onPress
   const { tokens, reduceMotion } = useTheme();
   const ref = useRef<View>(null);
   const pop = useMotionProgress();
-  const pops = skin.pressPop && !reduceMotion;
+  // Scale-up is size-proportional growth: off inside the grid's ScrollBox.
+  const insideScrollBox = useInsideScrollBox();
+  const pops = skin.pressPop && !reduceMotion && !insideScrollBox;
   const { swatchSize: size } = skin;
 
   return (

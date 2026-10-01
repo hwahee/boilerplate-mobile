@@ -360,6 +360,11 @@ describe('todos list — cursor pagination (the app’s infinite scroll)', () =>
 
   test('cursor stays correct when rows are inserted between pages', async () => {
     const first = await api<CursorPage<Todo>>('GET', '/api/todos?limit=2');
+    // The guarantee is for rows that are strictly NEWER than the cursor. The
+    // in-memory store stamps createdAt in milliseconds, so an insert in the
+    // same millisecond as the seed rows ties with them and the tie is broken
+    // by the random id — sometimes after the cursor. Step past that tick.
+    await Bun.sleep(2);
     await api('POST', '/api/todos', { body: { title: 'Delta (inserted mid-scroll)' } });
 
     const second = await api<CursorPage<Todo>>(

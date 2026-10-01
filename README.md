@@ -271,6 +271,10 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
   씁니다. 앱에서는 바텀시트로 열리고, 스와치를 누르고 있으면 반환될 값이 말풍선으로
   보입니다. iOS에서는 시스템 색 피커도 쓸 수 있습니다 —
   **[docs/palette-mobile.md](docs/palette-mobile.md)**.
+- **오버레이(Modal / BottomSheet / Sidebar)**: 웹과 같은 스택 규칙과 같은 두 문
+  (`useOverlay()` 기본, 선언형은 예외)을 씁니다. iOS에서는 RN Modal이 서로 쌓이지 않으므로,
+  **네이티브 레이어 하나**에 스택 전체를 그립니다. 앱에서 RN `Modal`을 직접 쓰지 마세요 —
+  **[docs/overlay-mobile.md](docs/overlay-mobile.md)**.
 - **UI 자동화**: testID 레지스트리 + Maestro 플로우 —
   **[docs/ui-automation-mobile.md](docs/ui-automation-mobile.md)**.
 - **음성 어시스턴트**(`src/shared/voice`, `apps/mobile/src/voice`, `capsule/`):

@@ -25,6 +25,7 @@ import { Sidebar } from '../components/overlay/declarative';
 import { Palette } from '../components/Palette';
 import { Screen } from '../components/Screen';
 import { Spinner } from '../components/Spinner';
+import { TextArea } from '../components/TextArea';
 import { TextField } from '../components/TextField';
 import { useLocale } from '../i18n/LocaleProvider';
 import { useTheme } from '../theme/ThemeProvider';
@@ -198,6 +199,7 @@ export function DesignSystemScreen() {
   const { tokens } = useTheme();
   const { t } = useLocale();
   const [fieldValue, setFieldValue] = useState('');
+  const [areaValue, setAreaValue] = useState('');
   const [brandColor, setBrandColor] = useState<HexColor>(() => hexColor('#6366f1'));
   // Recent colors live here, not in the component — see docs/palette-design.md §5.3.
   const [recentColors, setRecentColors] = useState<readonly PaletteSwatch[]>([]);
@@ -300,6 +302,15 @@ export function DesignSystemScreen() {
             value=""
             onChangeText={() => undefined}
             error="Something is wrong here"
+          />
+          <TextArea
+            testID="ds.textarea"
+            label="Text area"
+            placeholder="Several lines of text"
+            hint={`${areaValue.length} / 500`}
+            maxLength={500}
+            value={areaValue}
+            onChangeText={setAreaValue}
           />
         </Section>
 

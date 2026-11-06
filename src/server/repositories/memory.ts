@@ -13,7 +13,6 @@
 import type { ChatMessage, ChatRoom } from '@shared/domain/chat';
 import type { Platform } from '@shared/domain/platform';
 import type { Todo, TodoCursorListQuery, TodoListQuery } from '@shared/domain/todo';
-import type { User } from '@shared/domain/user';
 import type { VersionPolicy } from '@shared/domain/version-policy';
 
 import type {
@@ -28,7 +27,6 @@ import type {
   TodoListCursor,
   TodoRepository,
   UnitOfWork,
-  UserRepository,
   VersionPolicyRepository,
 } from './types';
 
@@ -37,7 +35,6 @@ type MemoryTables = Omit<MemoryStore, 'snapshot' | 'restore'>;
 
 export class MemoryStore {
   todos = new Map<string, Todo>();
-  users = new Map<string, User>();
   auditLogs: AuditLogEntry[] = [];
   versionPolicies = new Map<Platform, VersionPolicy>();
   appConfig = new Map<string, unknown>();
@@ -152,20 +149,6 @@ export function createMemoryTodoRepository(store: MemoryStore): TodoRepository {
 
     async deleteById(id) {
       return Promise.resolve(store.todos.delete(id));
-    },
-  };
-}
-
-export function createMemoryUserRepository(store: MemoryStore): UserRepository {
-  return {
-    async findById(id) {
-      const user = store.users.get(id);
-      return Promise.resolve(user ? { ...user } : null);
-    },
-
-    async insert(user) {
-      store.users.set(user.id, { ...user });
-      return Promise.resolve();
     },
   };
 }

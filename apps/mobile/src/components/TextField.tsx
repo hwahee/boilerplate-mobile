@@ -1,7 +1,8 @@
 /**
  * Text input. `testID` is REQUIRED; when an error is shown, an
  * `${testID}.error` element appears (automation waits on it) and screen
- * readers announce it via the live region.
+ * readers announce it via the live region. TextArea (./TextArea.tsx) is the
+ * multi-line sibling with the same contract — both render `Field` below.
  *
  * Skins (theme/skin.ts): office is a sunken bevel with the dotted focus
  * rectangle; kids pops (scale + overshoot) and glows while focused.
@@ -34,7 +35,21 @@ export interface TextFieldProps {
   autoCorrect?: boolean;
 }
 
-export function TextField({
+export function TextField(props: TextFieldProps) {
+  return <Field {...props} />;
+}
+
+/** What TextArea adds on top of the single-line field. */
+export interface MultilineOptions {
+  /** Visible lines before the box grows no further (web `rows`). */
+  rows: number;
+  maxLength?: number;
+  /** Quiet line under the field, e.g. a character count → `${testID}.hint`. */
+  hint?: string;
+}
+
+/** @internal — shared by TextField and TextArea; not part of the public API. */
+export function Field({
   testID,
   value,
   onChangeText,
@@ -48,7 +63,8 @@ export function TextField({
   onBlur: onBlurProp,
   autoCapitalize,
   autoCorrect,
-}: TextFieldProps) {
+  multiline,
+}: TextFieldProps & { multiline?: MultilineOptions }) {
   const { tokens, reduceMotion } = useTheme();
   const { colors } = tokens;
   const hasError = !!error;
@@ -57,6 +73,7 @@ export function TextField({
   // Scale-up is size-proportional growth: off inside a ScrollBox (see there).
   const insideScrollBox = useInsideScrollBox();
   const pops = tokens.motion.focusScale !== 1 && !reduceMotion && !insideScrollBox;
+  const lineHeight = Math.round(tokens.type.body * 1.5);
 
   const onFocus = () => {
     setFocused(true);
@@ -105,17 +122,33 @@ export function TextField({
           editable={editable}
           autoCapitalize={autoCapitalize}
           autoCorrect={autoCorrect}
+          multiline={!!multiline}
+          numberOfLines={multiline?.rows}
+          maxLength={multiline?.maxLength}
+          textAlignVertical={multiline ? 'top' : undefined}
           accessibilityLabel={label ?? placeholder}
           accessibilityState={{ disabled: !editable }}
           style={{
-            minHeight: tokens.controlHeight,
             borderWidth: tokens.borderWidth,
             borderColor: hasError ? colors.danger : colors.border,
-            borderRadius: tokens.radius.control,
             paddingHorizontal: tokens.controlPaddingX,
-            // Compact (office) inputs: drop the platform's default vertical
-            // padding so 13pt text fits the 28pt box.
-            paddingVertical: tokens.controlHeight < tokens.minTouchTarget ? 0 : undefined,
+            ...(multiline
+              ? {
+                  // Grows with its rows instead of the control height (web
+                  // .field__input--multiline). A tall box is a surface, not a
+                  // pill: the kids pill radius would bend it into a capsule.
+                  minHeight: multiline.rows * lineHeight + tokens.spacing.sm * 2,
+                  paddingVertical: tokens.spacing.sm,
+                  lineHeight,
+                  borderRadius: Math.min(tokens.radius.control, tokens.radius.surface),
+                }
+              : {
+                  minHeight: tokens.controlHeight,
+                  borderRadius: tokens.radius.control,
+                  // Compact (office) inputs: drop the platform's default
+                  // vertical padding so 13pt text fits the 28pt box.
+                  paddingVertical: tokens.controlHeight < tokens.minTouchTarget ? 0 : undefined,
+                }),
             fontSize: tokens.type.body,
             fontFamily: tokens.type.fontFamily,
             color: colors.text,
@@ -124,6 +157,11 @@ export function TextField({
           }}
         />
       </Animated.View>
+      {multiline?.hint ? (
+        <AppText testID={`${testID}.hint`} variant="caption" muted>
+          {multiline.hint}
+        </AppText>
+      ) : null}
       {hasError ? (
         <AppText
           testID={`${testID}.error`}

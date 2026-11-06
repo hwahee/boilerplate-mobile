@@ -20,7 +20,7 @@ JS 번들은 네이티브 바이너리가 노출하는 모듈/뷰에 의존하�
   - 네이티브 모듈/라이브러리 추가·제거·업그레이드 (신규 pod/gradle 의존성)
   - app.config.ts 의 네이티브 반영 항목 변경
     (권한, scheme, intentFilters/associatedDomains, 아이콘/스플래시,
-     plugins, newArchEnabled, SDK 업그레이드 …)
+     plugins, SDK 업그레이드 …)
   - Expo SDK / React Native 버전 업
   ├─ 예 → ❷ 스토어 배포 (버전 범프 필수)
   └─ 아니오 (JS/TS·에셋·번들 내 리소스만 변경)

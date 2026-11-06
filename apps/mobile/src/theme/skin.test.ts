@@ -47,7 +47,7 @@ describe('office', () => {
     const up = buttonSkin(tokens, 'secondary', rest);
     expect(up.container).toMatchObject(bevelBorder(bevel, 'raised'));
     expect(up.container.transform).toBeUndefined();
-    expect(up.container.experimental_backgroundImage).toBe('linear-gradient(#fbfbfa, #d7d3ca)');
+    expect(up.container.backgroundImage).toBe('linear-gradient(#fbfbfa, #d7d3ca)');
     expect(up.labelWeight).toBe('400');
     expect(up.labelColor).toBe(tokens.colors.text);
 
@@ -58,12 +58,10 @@ describe('office', () => {
   });
 
   test('primary face is a primary-tinted gradient; danger is flat', () => {
-    expect(buttonSkin(tokens, 'primary', rest).container.experimental_backgroundImage).toBe(
+    expect(buttonSkin(tokens, 'primary', rest).container.backgroundImage).toBe(
       'linear-gradient(#5f85b9, #21569e)',
     );
-    expect(
-      buttonSkin(tokens, 'danger', rest).container.experimental_backgroundImage,
-    ).toBeUndefined();
+    expect(buttonSkin(tokens, 'danger', rest).container.backgroundImage).toBeUndefined();
   });
 
   test('disabled buttons do not press and fade to .55', () => {

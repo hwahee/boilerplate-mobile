@@ -40,6 +40,7 @@ import type { Tokens } from '../theme/tokens';
 import { planAccordionScroll } from './accordion-scroll';
 import { useScrollAnchor } from './AnchoredScrollView';
 import { AppText } from './AppText';
+import type { ViewInstance } from './native-refs';
 
 interface AccordionItem {
   /** Stable identity — also the segment used in the derived testIDs. */
@@ -86,8 +87,8 @@ export function Accordion({ items, mode = 'single', defaultOpenIds, testID }: Ac
   const { tokens, reduceMotion } = useTheme();
   const anchor = useScrollAnchor();
   const [openIds, setOpenIds] = useState<ReadonlySet<string>>(() => new Set(defaultOpenIds ?? []));
-  const triggerRefs = useRef(new Map<string, View>());
-  const panelRefs = useRef(new Map<string, View>());
+  const triggerRefs = useRef(new Map<string, ViewInstance>());
+  const panelRefs = useRef(new Map<string, ViewInstance>());
   const pendingRef = useRef<PendingToggle | null>(null);
   const skin = accordionSkin(tokens);
 

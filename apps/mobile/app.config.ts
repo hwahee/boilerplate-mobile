@@ -25,6 +25,7 @@
 import 'sucrase/register/ts';
 
 import type { ConfigContext, ExpoConfig } from 'expo/config';
+import splashScreen from 'expo-splash-screen/plugin';
 
 import { withVoiceAssistants } from './plugins/withVoiceAssistants';
 
@@ -96,14 +97,13 @@ const baseConfig = ({ config }: ConfigContext): ExpoConfig => ({
   // Deep links: custom scheme (all envs) + Universal/App Links (see below).
   scheme: profile.scheme,
   userInterfaceStyle: 'automatic',
-  newArchEnabled: true,
   platforms: ['ios', 'android'], // phones only — no web target (see README support matrix)
-  splash: {
+  plugins: [
     // Native splash: a flat brand color — the JS boot screen (src/boot)
-    // takes over immediately, so this stays minimal on purpose.
-    backgroundColor: '#4F46E5',
-    resizeMode: 'contain',
-  },
+    // takes over immediately, so this stays minimal on purpose. SDK 58 moved
+    // the splash from the top-level `splash` field into this plugin.
+    splashScreen({ backgroundColor: '#4F46E5', resizeMode: 'contain' }),
+  ],
   updates: {
     // OTA update endpoint. EAS Update by default; the app-side consumption
     // is abstracted behind src/version/updates.ts, so a self-hosted expo-updates
@@ -133,7 +133,9 @@ const baseConfig = ({ config }: ConfigContext): ExpoConfig => ({
   },
   extra: {
     appEnv: APP_ENV,
-    apiBaseUrl,
+    // Omitted (not null) when unset: since SDK 58 the manifest turns a null
+    // `extra` value into `{}`, which the app would take for a URL.
+    ...(apiBaseUrl ? { apiBaseUrl } : {}),
     eas: processEnv.EAS_PROJECT_ID ? { projectId: processEnv.EAS_PROJECT_ID } : undefined,
   },
 });

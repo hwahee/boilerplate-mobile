@@ -393,8 +393,9 @@ bun run dev               # API 서버 (앱이 붙을 대상)
 bun run dev:mobile        # Expo 개발 서버
 ```
 
-기기/시뮬레이터에서 API 주소는 `apps/mobile/src/config/env.ts`가 플랫폼별로 결정하며
-(`EXPO_PUBLIC_API_URL`로 항상 덮어쓸 수 있음), 환경(dev/stg/prod)은 `APP_ENV` 하나로
+기기/시뮬레이터에서 API 주소는 `apps/mobile/src/config/env.ts`가 정합니다. 개발 중에는
+**앱이 Metro에 접속한 주소의 3000번 포트**를 쓰므로, 실기기(Wi-Fi)·WSL·에뮬레이터 어디서든 따로 설정하지 않아도
+됩니다(`EXPO_PUBLIC_API_URL`로 항상 덮어쓸 수 있음, `--tunnel`로 띄울 때는 지정 필요). 환경(dev/stg/prod)은 `APP_ENV` 하나로
 번들 ID까지 분리됩니다(`app.config.ts`). 네이티브 빌드는 CI에서 분리되어 있습니다
 (`.github/workflows/native-build.yml`, EAS).
 

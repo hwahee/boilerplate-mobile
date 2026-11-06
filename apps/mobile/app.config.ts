@@ -133,7 +133,9 @@ const baseConfig = ({ config }: ConfigContext): ExpoConfig => ({
   },
   extra: {
     appEnv: APP_ENV,
-    apiBaseUrl,
+    // Omitted (not null) when unset: since SDK 58 the manifest turns a null
+    // `extra` value into `{}`, which the app would take for a URL.
+    ...(apiBaseUrl ? { apiBaseUrl } : {}),
     eas: processEnv.EAS_PROJECT_ID ? { projectId: processEnv.EAS_PROJECT_ID } : undefined,
   },
 });

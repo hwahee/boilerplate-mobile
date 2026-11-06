@@ -20,9 +20,8 @@ PR #4(아코디언)는 **웹 코드로는 이미 이 저장소에 머지되어 �
 2. **일치는 테스트가 강제한다.** `apps/mobile/src/theme/tokens.test.ts`는 웹의 `tokens.css`를
    **직접 파싱해서** 앱 토큰과 비교합니다. 숫자를 테스트에 복사해 두지 않았으므로, 업스트림이
    스킨 값을 바꾸면 앱이 따라갈 때까지 `bun run check`가 실패합니다.
-3. **standard/contrast는 건드리지 않는다.** 두 디자인은 원래 앱 전용 값(웹과 다름)을 쓰고 있었고, 이번
-   작업 이후에도 렌더링 결과가 바뀌지 않습니다. 스킨 규칙 함수는 두 디자인에 대해 항상 빈 객체를
-   반환하며, 이 역시 테스트(`skin.test.ts`)로 고정되어 있습니다.
+3. **standard/contrast도 웹 값이다.** 처음에는 두 디자인(당시 A/B)이 앱 전용 값을 썼지만, upstream #28
+   이후 네 스킨 모두 웹 `tokens.css`의 이식입니다(§7). 같은 테스트가 네 스킨 모두를 검사합니다.
 4. **의존성 추가 없음.** 베벨·그라디언트·그림자·아웃라인은 RN 0.81(New Architecture)이
    기본 제공하는 스타일 속성으로 그립니다.
 
@@ -39,16 +38,17 @@ PR #4(아코디언)는 **웹 코드로는 이미 이 저장소에 머지되어 �
 
 토큰에 새로 생긴 의미 단위:
 
-| 토큰                          | 뜻                                                   | standard/contrast 값       |
-| ----------------------------- | ---------------------------------------------------- | -------------------------- |
-| `radius.control/surface/pill` | 버튼·입력 / 카드 / 배지·칩의 모서리                  | 기존 `md` / `lg` / `full`  |
-| `controlHeight`, `chipHeight` | **보이는** 컨트롤/칩 높이                            | 기존 `minTouchTarget`(-8)  |
-| `controlPaddingX`             | 컨트롤 좌우 여백                                     | 기존 `spacing.md`          |
-| `type.fontFamily/lineHeight`  | 스킨 글꼴, CSS line-height 배수                      | 없음(플랫폼 기본)          |
-| `surfaceShadow`               | 카드 그림자(CSS box-shadow 문자열)                   | 없음                       |
-| `motion.*`                    | 지속 시간·곡선·press/focus 배율·체크 팝              | 웹 기본값(150/240ms, ease) |
-| `bevel`                       | office 베벨 색(`--office-bevel-*`, `--office-btn-*`) | `null`                     |
-| `colors.focus`                | 포커스 링 색(`--color-focus`)                        | primary와 같은 값          |
+| 토큰                          | 뜻                                                   | standard/contrast 값(웹, §7)      |
+| ----------------------------- | ---------------------------------------------------- | --------------------------------- |
+| `radius.control/surface/pill` | 버튼·입력 / 카드 / 배지·칩의 모서리                  | 10 / 16 / 999                     |
+| `controlHeight`, `chipHeight` | **보이는** 컨트롤/칩 높이                            | 36 / 36 (터치는 hitSlop으로 44)   |
+| `controlPaddingX`             | 컨트롤 좌우 여백                                     | 12                                |
+| `type.fontFamily/lineHeight`  | 스킨 글꼴, CSS line-height 배수                      | 시스템 글꼴, 본문 1.6 / 제목 1.25 |
+| `surfaceShadow`               | 카드 그림자(CSS box-shadow 문자열)                   | `0 1px 3px rgb(0 0 0 / 8%)`       |
+| `focusRingWidth`              | 포커스 링 두께(`--focus-ring-width`)                 | 2 / contrast 4                    |
+| `motion.*`                    | 지속 시간·곡선·press/focus 배율·체크 팝              | 웹 기본값(150/240ms, ease)        |
+| `bevel`                       | office 베벨 색(`--office-bevel-*`, `--office-btn-*`) | `null`                            |
+| `colors.focus`                | 포커스 링 색(`--color-focus`)                        | primary와 같은 값                 |
 
 ## 3. office — 웹 규칙과 앱 구현 대응표
 
@@ -140,7 +140,7 @@ Segoe UI/Tahoma는 Microsoft 라이선스 글꼴이라 앱에 번들할 수 없�
 
 - 자동: `bun run check`
   - `tokens.test.ts`: 웹 CSS를 파싱해 office·kids의 색·크기·모션·베벨이 같은지 비교
-  - `skin.test.ts`: 스킨 규칙과 standard/contrast 불변 확인
+  - `skin.test.ts`: 스킨 규칙(standard/contrast의 포커스 링·터치 영역 포함)
   - `accordion-scroll.test.ts`: 스크롤 보정 계산
 - 번들: `expo export --platform android`로 Hermes 번들 생성까지 확인했습니다.
 - **실기기·시뮬레이터 시각 확인은 아직 하지 않았습니다.** 다음 항목을 확인해야 합니다.
@@ -153,12 +153,20 @@ Segoe UI/Tahoma는 Microsoft 라이선스 글꼴이라 앱에 번들할 수 없�
 ## 7. 스킨 이름 변경 — upstream #28
 
 웹이 디자인 A/B를 `standard`/`contrast`로 바꾸면서 contrast를 **standard와 같은 모양**으로 만들었습니다.
-다른 것은 색, 테두리 2px, 포커스 링 4px, 진한 스크림뿐입니다. 앱도 같은 규칙을 따릅니다.
+다른 것은 색, 테두리 2px, 포커스 링 4px, 진한 스크림뿐입니다. 앱은 이 둘을 office/kids처럼 **웹 값 그대로 이식**했습니다.
+그전까지 앱의 A/B는 앱 전용 값(본문 16·컨트롤 44, B는 본문 19·컨트롤 56)이었으므로, 두 스킨의 모양이 바뀝니다.
 
 - 이름: `DesignVariant`는 공통 `@shared/domain/appearance`의 `Design`(`standard`·`contrast`·`office`·`kids`)입니다.
   설정 testID는 `settings.design.standard` / `.contrast`가 되었습니다.
-- contrast = standard의 치수 + 예전 B의 색(`CONTRAST_COLORS`, 스크림 포함) + 테두리 2(웹 `--border-width`, 테스트가
-  파싱해 비교). 예전 B의 앱 전용 큰 글자(본문 19)·큰 컨트롤(56)은 **없어졌습니다**(upstream 가이드 3절 기본값).
-  앱의 standard/contrast에는 포커스 링이 없어(입력 테두리만 있음) 4px 포커스 링은 해당이 없습니다.
+- standard: `[data-design='standard'], [data-design='contrast']` 공유 블록과 standard 색 블록 그대로입니다.
+  - 글자 32/24/15/13(2xl/xl/body/sm), 본문 줄 간격 1.6, 컨트롤 36(터치는 hitSlop으로 44), 좌우 여백 12,
+    모서리 10/16, 카드 그림자 `0 1px 3px 8%`, 스크림 45%.
+  - 제목 굵기 650은 휴대폰에 없는 굵기라, 브라우저의 CSS 글꼴 선택 규칙과 같이 700으로 씁니다.
+  - 글꼴은 웹 스택(Pretendard → `-apple-system`/Roboto)이 휴대폰에서 고르는 시스템 글꼴입니다.
+- contrast = standard + 웹 contrast 색 + 테두리 2 + 포커스 링 4 + 스크림 65%. 예전 B의 앱 전용 큰 글자·큰 컨트롤은
+  **없어졌습니다**(upstream 가이드 3절 기본값).
+- 포커스 링: 웹의 전역 `:focus-visible`(두께 `--focus-ring-width`, 2px 바깥)을 입력칸 포커스에 옮겼습니다
+  (`fieldSkin`, 새 토큰 `focusRingWidth`). office의 점선 사각형과 kids의 링도 같은 토큰을 씁니다.
+- Palette 스와치도 웹처럼 `컨트롤 높이 × 0.75`(27)이고, 간격 안에서 hitSlop으로 터치 영역을 넓힙니다.
 - 저장값 호환: 기기에 저장된 `a`/`b`는 `designVariantFrom()`(= 웹의 `designFrom()`)이 `standard`/`contrast`로
   읽고, 다음 저장 때 새 이름으로 씁니다. 업데이트 전 앱을 쓰던 사용자의 선택이 유지됩니다.

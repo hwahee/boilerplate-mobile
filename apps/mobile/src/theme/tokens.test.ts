@@ -14,6 +14,7 @@ import {
   getTokens,
   isDesignVariant,
   type ColorTokens,
+  type DesignVariant,
 } from './tokens';
 
 const css = readFileSync(
@@ -77,8 +78,28 @@ const COLOR_MAP: Record<string, keyof ColorTokens> = {
   'color-focus': 'focus',
 };
 
-describe.each(['office', 'kids'] as const)('%s skin matches the web', (variant) => {
-  const sizing = block(`[data-design='${variant}']`);
+/** The web's sizing custom properties for a skin, as the cascade applies them. */
+function sizingOf(variant: DesignVariant): Record<string, string> {
+  // standard and contrast share one block; contrast then overrides a few lines.
+  const shared = block(`[data-design='standard'],\n[data-design='contrast']`);
+  if (variant === 'standard') return shared;
+  if (variant === 'contrast') return { ...shared, ...block(`[data-design='contrast']`) };
+  return block(`[data-design='${variant}']`);
+}
+
+/**
+ * The weight a phone browser renders for a CSS weight: system fonts come in
+ * hundreds, and CSS font matching resolves a weight above 500 upward
+ * (650 → 700) and one below downward.
+ */
+function renderedWeight(css: string): string {
+  const weight = Number(css);
+  if (weight % 100 === 0) return css;
+  return String(weight > 500 ? Math.ceil(weight / 100) * 100 : Math.floor(weight / 100) * 100);
+}
+
+describe.each([...DESIGN_VARIANTS])('%s skin matches the web', (variant: DesignVariant) => {
+  const sizing = sizingOf(variant);
 
   test.each(['light', 'dark'] as const)('%s colors', (scheme) => {
     const web = block(`[data-design='${variant}'][data-theme='${scheme}']`);
@@ -94,7 +115,7 @@ describe.each(['office', 'kids'] as const)('%s skin matches the web', (variant) 
     expect(type.heading).toBe(points(resolve(sizing, 'font-size-xl')));
     expect(type.body).toBe(points(resolve(sizing, 'font-size-body')));
     expect(type.caption).toBe(points(resolve(sizing, 'font-size-sm')));
-    expect(type.emphasis).toBe(resolve(sizing, 'font-weight-heading') as typeof type.emphasis);
+    expect(type.emphasis as string).toBe(renderedWeight(resolve(sizing, 'font-weight-heading')));
     expect(type.lineHeight?.body).toBe(parseFloat(resolve(sizing, 'line-height-body')));
   });
 
@@ -105,6 +126,13 @@ describe.each(['office', 'kids'] as const)('%s skin matches the web', (variant) 
     expect(tokens.radius.control).toBe(points(resolve(sizing, 'radius-control')));
     expect(tokens.radius.surface).toBe(points(resolve(sizing, 'radius-surface')));
     expect(tokens.borderWidth).toBe(points(resolve(sizing, 'border-width')));
+    expect(tokens.focusRingWidth).toBe(points(resolve(sizing, 'focus-ring-width')));
+  });
+
+  test.each(['light', 'dark'] as const)('%s scrim', (scheme) => {
+    // rgb(0 0 0 / 25%) ↔ rgba(0, 0, 0, 0.25); the web scrim is per skin, not per theme.
+    const alpha = /\/\s*([\d.]+)%/.exec(resolve(sizing, 'overlay-scrim'))?.[1];
+    expect(getTokens(variant, scheme).colors.overlay).toBe(`rgba(0, 0, 0, ${Number(alpha) / 100})`);
   });
 
   test('motion', () => {
@@ -157,36 +185,35 @@ describe('overlay tokens match the web :root', () => {
     expect(overlay.scrollBleed).toBe(points(resolve(root, 'scroll-bleed')));
     expect(`${overlay.sheetMaxHeight * 100}dvh`).toBe(resolve(root, 'sheet-max-height'));
   });
-
-  test.each(['office', 'kids'] as const)('%s scrim', (variant) => {
-    const sizing = block(`[data-design='${variant}']`);
-    // rgb(0 0 0 / 25%) ↔ rgba(0, 0, 0, 0.25)
-    const alpha = /\/\s*([\d.]+)%/.exec(resolve(sizing, 'overlay-scrim'))?.[1];
-    expect(getTokens(variant, 'light').colors.overlay).toBe(
-      `rgba(0, 0, 0, ${Number(alpha) / 100})`,
-    );
-  });
 });
 
 describe('design variants', () => {
-  test('standard keeps its mobile values (no web port)', () => {
-    const standard = getTokens('standard', 'light');
-    expect(standard.controlHeight).toBe(standard.minTouchTarget);
-    expect(standard.radius.control).toBe(standard.radius.md);
-    expect(standard.radius.surface).toBe(standard.radius.lg);
-    expect(standard.bevel).toBeNull();
-    expect(standard.motion.durationFast).toBe(ms(root['duration-fast']!));
+  test('standard and contrast have no bevel and calm motion', () => {
+    for (const variant of ['standard', 'contrast'] as const) {
+      const tokens = getTokens(variant, 'light');
+      expect(tokens.bevel).toBeNull();
+      expect(tokens.motion.easing).toEqual([0.25, 0.1, 0.25, 1]); // CSS `ease`
+    }
   });
 
   test.each(['light', 'dark'] as const)(
-    'contrast (%s) is standard with its own colors and the web border width',
+    'contrast (%s) is standard with its own colors and thicker lines only',
     (scheme) => {
-      const { colors, borderWidth, variant, ...shape } = getTokens('contrast', scheme);
+      const { colors, borderWidth, focusRingWidth, variant, ...shape } = getTokens(
+        'contrast',
+        scheme,
+      );
       const standard = getTokens('standard', scheme);
       expect(variant).toBe('contrast');
-      expect(borderWidth).toBe(points(resolve(block(`[data-design='contrast']`), 'border-width')));
       expect(colors).not.toEqual(standard.colors);
-      const { colors: _c, borderWidth: _b, variant: _v, ...standardShape } = standard;
+      expect([borderWidth, focusRingWidth]).toEqual([2, 4]);
+      const {
+        colors: _c,
+        borderWidth: _b,
+        focusRingWidth: _f,
+        variant: _v,
+        ...standardShape
+      } = standard;
       expect(shape).toEqual(standardShape);
     },
   );

@@ -160,21 +160,35 @@ export function fieldSkin(tokens: Tokens, state: FieldState): ViewStyle {
       borderRadius: 1,
       // Classic dotted Windows focus rectangle, hugging the control.
       ...(state.focused
-        ? { outlineWidth: 1, outlineStyle: 'dotted', outlineColor: colors.text, outlineOffset: 1 }
+        ? {
+            outlineWidth: tokens.focusRingWidth,
+            outlineStyle: 'dotted',
+            outlineColor: colors.text,
+            outlineOffset: 1,
+          }
         : null),
     };
   }
   if (tokens.variant === 'kids' && state.focused) {
-    // Base focus ring (--focus-ring-width 4px) + the fat colorful glow.
+    // Base focus ring + the fat colorful glow.
     return {
-      outlineWidth: 4,
-      outlineStyle: 'solid',
-      outlineColor: colors.focus,
-      outlineOffset: 2,
+      ...focusRing(tokens),
       boxShadow: `0px 0px 0px 5px ${withAlpha(colors.focus, 0.55)}`,
     };
   }
-  return {};
+  // standard / contrast: the web's global `:focus-visible` ring (2px, 4px in
+  // contrast), 2px outside the control.
+  return state.focused ? focusRing(tokens) : {};
+}
+
+/** The web `:focus-visible { outline: var(--focus-ring-width) solid var(--color-focus); outline-offset: 2px }`. */
+function focusRing(tokens: Tokens): ViewStyle {
+  return {
+    outlineWidth: tokens.focusRingWidth,
+    outlineStyle: 'solid',
+    outlineColor: tokens.colors.focus,
+    outlineOffset: 2,
+  };
 }
 
 export function cardSkin(tokens: Tokens): ViewStyle {
@@ -241,16 +255,20 @@ export interface PaletteSkin {
 
 /**
  * Port of the `.palette*` rules in main.css plus their office/kids overrides.
- * standard/contrast size swatches to the touch minimum (their own mobile values); office and
- * kids keep the web's `--control-height * 0.75`, with hitSlop filling in.
+ * Every skin keeps the web's swatch size, `--control-height * 0.75`, with
+ * hitSlop filling in toward the touch minimum (never more than half the gap).
  */
 export function paletteSkin(tokens: Tokens): PaletteSkin {
   const { colors, bevel } = tokens;
+  const swatchSize = Math.round(tokens.controlHeight * 0.75);
   const base: PaletteSkin = {
-    swatchSize: tokens.minTouchTarget,
+    swatchSize,
     swatchRadius: tokens.radius.control / 1.5,
     gridGap: tokens.spacing.sm,
-    swatchHitSlop: undefined,
+    swatchHitSlop: Math.min(
+      tokens.spacing.sm / 2,
+      Math.ceil((tokens.minTouchTarget - swatchSize) / 2),
+    ),
     selectedRing: `0px 0px 0px 2px ${colors.surfaceAlt}, 0px 0px 0px 4px ${colors.focus}`,
     selectedInset: null,
     sectionGap: 12,
@@ -263,10 +281,8 @@ export function paletteSkin(tokens: Tokens): PaletteSkin {
 
   if (tokens.variant === 'office' && bevel) {
     const sunken = { ...bevelBorder(bevel, 'sunken'), borderRadius: 1 };
-    const swatchSize = Math.round(tokens.controlHeight * 0.75);
     return {
       ...base,
-      swatchSize,
       swatchRadius: 0,
       gridGap: 2, // dense, like the Office color grid
       swatchHitSlop: 1,
@@ -286,15 +302,9 @@ export function paletteSkin(tokens: Tokens): PaletteSkin {
     };
   }
   if (tokens.variant === 'kids') {
-    const swatchSize = Math.round(tokens.controlHeight * 0.75);
     return {
       ...base,
-      swatchSize,
       swatchRadius: tokens.radius.full,
-      swatchHitSlop: Math.min(
-        tokens.spacing.sm / 2,
-        Math.ceil((tokens.minTouchTarget - swatchSize) / 2),
-      ),
       trigger: { boxShadow: KIDS_BUTTON_SHADOW },
       triggerWeight: '800',
       callout: { ...base.callout, borderRadius: tokens.radius.full },

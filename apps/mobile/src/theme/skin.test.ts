@@ -28,14 +28,34 @@ describe('color helpers', () => {
   });
 });
 
-describe('standard and contrast are untouched by skin rules', () => {
-  test.each(['standard', 'contrast'] as const)('%s', (variant) => {
+describe('standard and contrast', () => {
+  test.each(['standard', 'contrast'] as const)(
+    '%s keeps plain buttons, cards and accordions',
+    (variant) => {
+      const tokens = getTokens(variant, 'light');
+      expect(buttonSkin(tokens, 'primary', pressed)).toEqual({ container: {} });
+      expect(cardSkin(tokens)).toEqual({ boxShadow: tokens.surfaceShadow! });
+      expect(accordionSkin(tokens)).toEqual({ trigger: {}, separatorColor: tokens.colors.border });
+    },
+  );
+
+  test.each([
+    ['standard', 2],
+    ['contrast', 4],
+  ] as const)('%s field focus is the web focus ring (%ipt, 2pt outside)', (variant, width) => {
     const tokens = getTokens(variant, 'light');
-    expect(buttonSkin(tokens, 'primary', pressed)).toEqual({ container: {} });
-    expect(fieldSkin(tokens, { focused: true })).toEqual({});
-    expect(cardSkin(tokens)).toEqual({});
-    expect(accordionSkin(tokens)).toEqual({ trigger: {}, separatorColor: tokens.colors.border });
-    expect(touchSlop(tokens, tokens.controlHeight)).toBeUndefined();
+    expect(fieldSkin(tokens, { focused: false })).toEqual({});
+    expect(fieldSkin(tokens, { focused: true })).toEqual({
+      outlineWidth: width,
+      outlineStyle: 'solid',
+      outlineColor: tokens.colors.focus,
+      outlineOffset: 2,
+    });
+  });
+
+  test('36pt controls keep the 44pt touch target through hitSlop', () => {
+    const tokens = getTokens('standard', 'light');
+    expect(touchSlop(tokens, tokens.controlHeight)).toBe(4);
   });
 });
 
@@ -125,11 +145,11 @@ describe('kids', () => {
 });
 
 describe('palette', () => {
-  test('standard/contrast swatches are touch-sized with the web selection ring', () => {
+  test('standard/contrast swatches are the web size (control × 0.75) with the web selection ring', () => {
     const tokens = getTokens('standard', 'light');
     const skin = paletteSkin(tokens);
-    expect(skin.swatchSize).toBe(tokens.minTouchTarget);
-    expect(skin.swatchHitSlop).toBeUndefined();
+    expect(skin.swatchSize).toBe(27); // round(36 × 0.75)
+    expect(skin.swatchHitSlop).toBe(4); // capped at half the 8pt gap
     expect(skin.selectedRing).toContain(tokens.colors.focus);
     expect(skin.pressPop).toBe(false);
   });

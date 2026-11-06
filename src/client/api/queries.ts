@@ -7,11 +7,10 @@
  */
 import type { Page } from '@shared/api/pagination';
 import type { Todo, TodoStatus } from '@shared/domain/todo';
-import type { User } from '@shared/domain/user';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 
-import { authApi, todosApi, type TodoListQueryInput } from './endpoints';
+import { authApi, sitemapApi, todosApi, type TodoListQueryInput } from './endpoints';
 import { ApiRequestError } from './http';
 
 const todoKeys = {
@@ -45,24 +44,6 @@ export function useCaller(): 'member' | 'guest' | 'anyone' | 'unknown' {
   if (me.isSuccess) return me.data ? 'member' : 'guest';
   if (me.error instanceof ApiRequestError && me.error.code === 'NOT_FOUND') return 'anyone';
   return 'unknown';
-}
-
-/** Signs in by user id; the returned user becomes the cached `me` directly. */
-export function useDevLogin() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (userId: string) => authApi.devLogin({ userId }),
-    onSuccess: (user) => queryClient.setQueryData<User | null>(authKeys.me, user),
-  });
-}
-
-/** Signs out; `me` becomes `null` without a refetch. */
-export function useLogout() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: () => authApi.logout(),
-    onSuccess: () => queryClient.setQueryData<User | null>(authKeys.me, null),
-  });
 }
 
 /** Paginated list; keeps the previous page rendered while the next one loads. */
@@ -140,4 +121,17 @@ export function useTodoLiveUpdates(): void {
     };
     return () => socket.close();
   }, [queryClient]);
+}
+
+/**
+ * Service directory for the footer. It is a deploy-time-ish document, so it
+ * is fetched once and kept fresh for the session rather than re-validated on
+ * every mount; failures stay silent (the footer degrades to no column).
+ */
+export function useSitemap() {
+  return useQuery({
+    queryKey: ['sitemap'] as const,
+    queryFn: () => sitemapApi.get(),
+    staleTime: 5 * 60_000,
+  });
 }

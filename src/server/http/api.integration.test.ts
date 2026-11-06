@@ -8,11 +8,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:tes
 import type { CursorPage } from '@shared/api/cursor-pagination';
 import { APP_VERSION_HEADER, PLATFORM_HEADER } from '@shared/api/headers';
 import { VERSION_HEADER } from '@shared/api/version';
+import type { Sitemap } from '@shared/domain/sitemap';
 import type { Todo } from '@shared/domain/todo';
 import type { User } from '@shared/domain/user';
 
 import { bridgePubSubToWebSocket, buildApp, type SocketData } from '../app';
-import { loadServerConfig } from '../config';
+import { memberCookie as signedInCookie, startFakeIssuer } from '../auth/fake-issuer';
+import { loadServerConfig, type ServerConfig } from '../config';
 import { createContainer, type Container } from '../container';
 import { silentLogger } from '../lib/log';
 import type { PushMessage, PushSender } from '../push/types';
@@ -24,6 +26,9 @@ const ALLOWED_ORIGIN = 'https://allowed.example.com';
 const ADMIN_TOKEN = 'integration-test-admin-token';
 const VOICE_TOKEN = 'integration-test-voice-token';
 
+/** The member server, standing in: signs members in and says who they are. */
+const issuer = startFakeIssuer();
+let config: ServerConfig;
 let container: Container;
 let state: AppState;
 let server: Bun.Server<SocketData>;
@@ -43,14 +48,12 @@ const recordingPushSender: PushSender = {
 let memberCookie: string;
 
 beforeAll(async () => {
-  const config = loadServerConfig({
+  config = issuer.config({
     APP_ENV: 'local',
-    DB_DRIVER: 'memory',
     PUBSUB_DRIVER: 'memory',
     CORS_ORIGINS: ALLOWED_ORIGIN,
     ADMIN_TOKEN,
     VOICE_TOKEN,
-    AUTH_DRIVER: 'dev',
   });
   container = createContainer(config, {
     log: silentLogger,
@@ -63,11 +66,7 @@ beforeAll(async () => {
   baseUrl = String(server.url).replace(/\/$/, '');
   stopBridge = await bridgePubSubToWebSocket(server, container);
   stopWorker = await startWorker(container);
-  const login = await api('POST', '/api/auth/dev-login', {
-    body: { userId: 'tester' },
-    as: 'guest',
-  });
-  memberCookie = cookieFrom(login.headers);
+  memberCookie = signedInCookie(config, { userId: 'tester', displayName: 'Tester' });
 });
 
 afterAll(async () => {
@@ -75,6 +74,7 @@ afterAll(async () => {
   await stopBridge();
   await server.stop(true);
   await container.dispose();
+  await issuer.stop();
 });
 
 beforeEach(async () => {
@@ -99,6 +99,7 @@ async function api<T = unknown>(
 ): Promise<{ status: number; body: T; headers: Headers }> {
   const response = await fetch(baseUrl + path, {
     method,
+    redirect: 'manual', // the sign-in routes answer with redirects to check
     headers: {
       ...((options.as ?? 'member') === 'member' ? { cookie: memberCookie } : {}),
       ...(options.body !== undefined ? { 'content-type': 'application/json' } : {}),
@@ -676,6 +677,20 @@ describe('CORS', () => {
   });
 });
 
+describe('sitemap', () => {
+  test('serves the service directory from public/sitemap.json', async () => {
+    const { status, body, headers } = await api<Sitemap>('GET', '/sitemap.json');
+    expect(status).toBe(200);
+    expect(headers.get('cache-control')).toContain('max-age');
+    // The shipped file is sample data — assert the shape, not its entries.
+    expect(Array.isArray(body.services)).toBe(true);
+    for (const service of body.services) {
+      expect(service.name.length).toBeGreaterThan(0);
+      expect(service.url).toMatch(/^(https?:\/\/|\/)/);
+    }
+  });
+});
+
 describe('fallback', () => {
   test('unknown paths return 404', async () => {
     expect((await api('GET', '/definitely-not-a-route')).status).toBe(404);
@@ -698,44 +713,116 @@ describe('fallback', () => {
   });
 });
 
-/** The `name=value` pair a response's Set-Cookie carries, ready to send back. */
-function cookieFrom(headers: Headers): string {
-  return (headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+/** The `name=value` pair of the cookie `name` a response sets, ready to send back. */
+function cookieFrom(headers: Headers, name: string): string | undefined {
+  return headers
+    .getSetCookie()
+    .map((cookie) => cookie.split(';')[0] ?? '')
+    .find((pair) => pair.startsWith(`${name}=`));
 }
 
-describe('auth (AUTH_DRIVER=dev)', () => {
-  test('sign in → me 200 → sign out → me 401', async () => {
-    const login = await api<User>('POST', '/api/auth/dev-login', { body: { userId: 'alice' } });
-    expect(login.status).toBe(200);
-    expect(login.body).toMatchObject({ id: 'alice', displayName: 'alice' });
-    expect(login.body.createdAt).toMatch(/Z$/); // UTC at the boundary
-    expect(login.headers.get('set-cookie')).toContain('HttpOnly');
-    const cookie = cookieFrom(login.headers);
+const SESSION = 'session-test-service';
+const SIGN_IN = 'sign-in-test-service';
 
-    const me = await api<User>('GET', '/api/auth/me', { headers: { cookie } });
+describe('auth (AUTH_DRIVER=oidc)', () => {
+  /** Starts a sign-in the way a browser does; returns what comes back to the callback. */
+  async function startSignIn(returnTo: string, appearance: Record<string, string> = {}) {
+    const query = new URLSearchParams({ returnTo, ...appearance });
+    const login = await api('GET', `/api/auth/login?${query}`, { as: 'guest' });
+    const location = new URL(login.headers.get('location') ?? '');
+    return {
+      login,
+      location,
+      cookie: cookieFrom(login.headers, SIGN_IN) ?? '',
+      state: location.searchParams.get('state') ?? '',
+    };
+  }
+
+  /** The member server's answer to a sign-in, as the browser brings it back. */
+  const callback = (query: string, cookie: string) =>
+    api('GET', `/api/auth/callback?${query}`, { headers: { cookie } });
+
+  test('login → the member server → callback: signed in, back where it started', async () => {
+    const { login, location, cookie, state } = await startSignIn('/todos?page=2');
+    expect(login.status).toBe(302);
+    expect(location.origin + location.pathname).toBe(`${issuer.url}/oauth2/auth`);
+    expect(location.searchParams.get('client_id')).toBe('test-service');
+    expect(login.headers.getSetCookie()[0]).toContain('HttpOnly');
+
+    const code = issuer.issueCode({ sub: 'alice', name: 'Alice', sid: 'sid-a' });
+    const back = await callback(`code=${code}&state=${state}`, cookie);
+    expect(back.status).toBe(302);
+    expect(back.headers.get('location')).toBe('/todos?page=2');
+    expect(cookieFrom(back.headers, SIGN_IN)).toBe(`${SIGN_IN}=`); // used up
+    const session = cookieFrom(back.headers, SESSION) ?? '';
+
+    const me = await api<User>('GET', '/api/auth/me', { headers: { cookie: session } });
     expect(me.status).toBe(200);
-    expect(me.body.id).toBe('alice');
+    expect(me.body).toEqual({ id: 'alice', displayName: 'Alice' });
+  });
 
-    const logout = await api('POST', '/api/auth/logout', { headers: { cookie } });
-    expect(logout.status).toBe(204);
-    const cleared = cookieFrom(logout.headers);
-    expect(cleared).toBe('session=');
-
-    const after = await api<{ error: { code: string } }>('GET', '/api/auth/me', {
-      headers: { cookie: cleared },
+  test("the member server's sign-in page is asked to look like the page it started on", async () => {
+    const { location } = await startSignIn('/', {
+      theme: 'dark',
+      design: 'office',
+      ui_locales: 'ko',
     });
-    expect(after.status).toBe(401);
-    expect(after.body.error.code).toBe('UNAUTHORIZED');
+    expect(location.searchParams.get('theme')).toBe('dark');
+    expect(location.searchParams.get('design')).toBe('office');
+    expect(location.searchParams.get('ui_locales')).toBe('ko');
+
+    // Unknown values are dropped, not passed through.
+    const odd = await startSignIn('/', { theme: 'sepia', design: '<x>', ui_locales: 'fr' });
+    expect(odd.location.searchParams.has('theme')).toBe(false);
+    expect(odd.location.searchParams.has('design')).toBe(false);
+    expect(odd.location.searchParams.has('ui_locales')).toBe(false);
   });
 
-  test('the first sign-in creates the user; later ones return the same user', async () => {
-    const first = await api<User>('POST', '/api/auth/dev-login', { body: { userId: 'bob' } });
-    const again = await api<User>('POST', '/api/auth/dev-login', { body: { userId: 'bob' } });
-    expect(again.status).toBe(200);
-    expect(again.body).toEqual(first.body);
+  test('a sign-in that cannot finish lands on /sign-in-failed and signs nobody in', async () => {
+    const turnedDown = await startSignIn('/');
+    const notStartedHere = await startSignIn('/');
+    const first = await startSignIn('/');
+    const second = await startSignIn('/');
+    const code = issuer.issueCode({ sub: 'alice' });
+    await callback(`code=${code}&state=${first.state}`, first.cookie);
+
+    for (const answer of [
+      await callback(`error=access_denied&state=${turnedDown.state}`, turnedDown.cookie),
+      // Another browser's sign-in (no sign-in cookie here), or a state that does not match.
+      await callback(
+        `code=${issuer.issueCode({ sub: 'mallory' })}&state=${notStartedHere.state}`,
+        '',
+      ),
+      await callback(
+        `code=${issuer.issueCode({ sub: 'mallory' })}&state=wrong`,
+        notStartedHere.cookie,
+      ),
+      // The same answer brought back twice (the back button).
+      await callback(`code=${code}&state=${second.state}`, second.cookie),
+    ]) {
+      expect(answer.status).toBe(302);
+      expect(answer.headers.get('location')).toBe('/sign-in-failed');
+      expect(cookieFrom(answer.headers, SESSION)).toBeUndefined();
+    }
   });
 
-  test('me without a session is 401 with the localized envelope', async () => {
+  test('a sign-in only ever comes back to a page on this site', async () => {
+    for (const returnTo of [
+      'https://elsewhere.test/',
+      '//elsewhere.test/',
+      '/\\elsewhere.test',
+      '/\t/elsewhere.test',
+    ]) {
+      const { cookie, state } = await startSignIn(returnTo);
+      const back = await callback(
+        `code=${issuer.issueCode({ sub: 'alice' })}&state=${state}`,
+        cookie,
+      );
+      expect(back.headers.get('location')).toBe('/');
+    }
+  });
+
+  test('me without a session, or with one this service did not sign, is 401', async () => {
     const { status, body } = await api<{ error: { code: string; message: string } }>(
       'GET',
       '/api/auth/me?lang=ko',
@@ -743,28 +830,41 @@ describe('auth (AUTH_DRIVER=dev)', () => {
     );
     expect(status).toBe(401);
     expect(body.error).toMatchObject({ code: 'UNAUTHORIZED', message: '로그인이 필요합니다.' });
+    const forged = `${SESSION}=${Buffer.from('{"userId":"ghost"}').toString('base64url')}.x`;
+    expect((await api('GET', '/api/auth/me', { headers: { cookie: forged } })).status).toBe(401);
   });
 
-  test('a session naming a user that does not exist is 401', async () => {
-    const { status } = await api('GET', '/api/auth/me', { headers: { cookie: 'session=ghost' } });
-    expect(status).toBe(401);
-  });
+  test('signing out goes to the member server; its front-channel call ends only the session it names', async () => {
+    const logout = await api('GET', '/api/auth/logout');
+    expect(logout.status).toBe(302);
+    expect(logout.headers.get('location')).toBe(`${issuer.url}/oauth2/sessions/logout`);
+    expect(cookieFrom(logout.headers, SESSION)).toBeUndefined(); // the member server confirms first
 
-  test('rejects malformed user ids', async () => {
-    for (const userId of ['', 'Alice', 'has space', 'x'.repeat(51)]) {
-      const { status } = await api('POST', '/api/auth/dev-login', { body: { userId } });
-      expect(status).toBe(400);
-    }
+    const cookie = signedInCookie(config, { userId: 'alice', sid: 'sid-a' });
+    const iss = encodeURIComponent(issuer.url);
+    const frontChannel = (query: string) =>
+      api('GET', `/api/auth/frontchannel-logout?${query}`, { headers: { cookie } });
+
+    const newer = await frontChannel(`iss=${iss}&sid=sid-b`);
+    expect(newer.status).toBe(200);
+    expect(cookieFrom(newer.headers, SESSION)).toBeUndefined();
+    const stranger = await frontChannel(
+      `iss=${encodeURIComponent('http://elsewhere.test')}&sid=sid-a`,
+    );
+    expect(cookieFrom(stranger.headers, SESSION)).toBeUndefined();
+
+    const named = await frontChannel(`iss=${iss}&sid=sid-a`);
+    expect(cookieFrom(named.headers, SESSION)).toBe(`${SESSION}=`);
   });
 
   test('with AUTH_DRIVER=none the auth routes are not mounted', () => {
-    const config = loadServerConfig({ DB_DRIVER: 'memory', AUTH_DRIVER: 'none' });
-    const app = buildApp(createContainer(config, { log: silentLogger }), state);
+    const none = loadServerConfig({ DB_DRIVER: 'memory', AUTH_DRIVER: 'none' });
+    const app = buildApp(createContainer(none, { log: silentLogger }), state);
     expect(Object.keys(app.routes).filter((path) => path.startsWith('/api/auth'))).toEqual([]);
   });
 });
 
-describe('todos: members write, guests only read (AUTH_DRIVER=dev)', () => {
+describe('todos: members write, guests only read (AUTH_DRIVER=oidc)', () => {
   test('a guest can list and read todos', async () => {
     const created = await api<Todo>('POST', '/api/todos', { body: { title: 'Visible' } });
     expect((await api('GET', '/api/todos', { as: 'guest' })).status).toBe(200);
@@ -798,8 +898,8 @@ describe('todos: members write, guests only read (AUTH_DRIVER=dev)', () => {
 
 describe('todos without sign-in (AUTH_DRIVER=none)', () => {
   test('there are no guests to turn away: anyone can write', async () => {
-    const config = loadServerConfig({ DB_DRIVER: 'memory', AUTH_DRIVER: 'none' });
-    const noAuth = createContainer(config, { log: silentLogger });
+    const none = loadServerConfig({ DB_DRIVER: 'memory', AUTH_DRIVER: 'none' });
+    const noAuth = createContainer(none, { log: silentLogger });
     const noAuthServer = Bun.serve({ port: 0, ...buildApp(noAuth, { shuttingDown: false }) });
     try {
       const response = await fetch(new URL('/api/todos', noAuthServer.url), {

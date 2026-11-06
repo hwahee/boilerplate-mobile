@@ -21,7 +21,7 @@ src/
 │                    #   todo / version-policy / app-config / push-token / platform
 ├── server/          # Bun server (API + 클라이언트 서빙 + 워커)
 │   ├── http/        # 라우트 공통 미들웨어 (CORS, 버전, 426 게이트, 에러, locale)
-│   ├── auth/        # 요청 신원 — AUTH_DRIVER별로 "누가 호출했나"를 읽는 유일한 자리
+│   ├── auth/        # 요청 신원(서명된 세션 쿠키) + 회원 서버 로그인(OIDC 표준만)
 │   ├── routes/      # 엔드포인트 정의 (todos / auth / version-policy / app-config / push / admin)
 │   ├── services/    # 비즈니스 로직 (트랜잭션 경계가 여기서 드러남)
 │   ├── repositories/# 영속성 계약 + postgres/in-memory 구현
@@ -36,10 +36,13 @@ src/
     ├── auth/        # 헤더의 로그인/로그아웃 컨트롤
     ├── chat/        # 채팅 코어 — 소켓·방 상태·useChatRoomState/Actions (UI 없음)
     ├── ui/          # 디자인 시스템 컴포넌트
-    ├── styles/      # 디자인 토큰 (라이트/다크 × 디자인 A/B)
+    ├── styles/      # 디자인 토큰 (라이트/다크 × 스킨 4종)
     ├── theme/ i18n/ # 테마·로케일 컨텍스트
     ├── testing/     # data-testid 레지스트리 (docs/ui-automation.md 참고)
-    └── pages/       # Home(Todos + 채팅), Design System, NotFound
+    └── pages/       # Home(Todos + 채팅), Design System, 로그인 실패, NotFound
+
+public/             # 런타임에 디스크에서 읽는 정적 데이터 (번들되지 않음)
+└── sitemap.json    # 서비스 디렉터리 — 푸터의 "Other Services" 컬럼 소스
 
 apps/
 └── mobile/          # Expo(React Native) 앱 — iOS/Android
@@ -47,7 +50,7 @@ apps/
     ├── src/boot/    # 부트 상태 머신 (config·정책·광고 슬롯 게이트)
     ├── src/version/ # 강제/선택 업데이트, OTA·스토어 파사드
     ├── src/config/  # 원격 설정(캐시·폴링·WS 푸시), 환경 변수
-    ├── src/theme/   # 디자인 토큰 (라이트/다크 × A/B/office/kids) + 스킨 규칙
+    ├── src/theme/   # 디자인 토큰 (라이트/다크 × standard/contrast/office/kids) + 스킨 규칙
     ├── src/i18n/    # 앱 메시지 카탈로그 + 로케일 컨텍스트
     ├── src/testing/ # testID 레지스트리 (docs/ui-automation-mobile.md 참고)
     ├── src/voice/   # ★ 음성 명령이 실제로 실행되는 곳 (Siri/Bixby/Assistant 공통)
@@ -87,7 +90,14 @@ bun run dev               # 개발 서버 (서버 watch + 클라이언트 HMR) �
 bun run dev:mobile        # Expo 개발 서버 (앱은 위 서버를 API로 사용)
 ```
 
+로그인은 회원 서버([hwahee/boilerplate-auth](https://github.com/hwahee/boilerplate-auth))가 맡습니다.
+이 저장소의 `.env.example`은 서비스 id가 정해지기 전이라 `AUTH_DRIVER=none`(로그인 없음)입니다. 로그인까지
+띄우려면 회원 서버를 함께 띄우고(그 저장소 README의 "시작하기": `db:setup` → `hydra:up` →
+`services:register` → `dev`) `.env`를 `AUTH_DRIVER=oidc`로 바꿉니다.
+
 DB 없이 바로 실행하려면 `.env`에서 `DB_DRIVER=memory`로 바꾸면 됩니다(테스트도 이 드라이버를 사용).
+다른 프로젝트의 Postgres와 함께 띄우려면 `.env`의 `POSTGRES_PORT`와 `DATABASE_URL`의 포트를 같이 바꿉니다
+(다른 Postgres가 이미 그 포트를 쓰고 있으면 `db:setup`이 비밀번호 오류로 바로 멈춥니다).
 
 `bun install`은 워크스페이스 루트에서 한 번만 실행하면 앱 의존성까지 함께 설치됩니다.
 
@@ -201,20 +211,36 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
 
 ### 인증 (회원)
 
-확정된 전제는 [CLAUDE.md](CLAUDE.md)에 있습니다: 비밀번호를 다루지 않고, 개발 단계는 아이디만으로
-로그인하며, 실제 인증은 나중에 구글 같은 외부 로그인에 위임합니다.
+확정된 전제는 [CLAUDE.md](CLAUDE.md)에 있습니다: 비밀번호를 다루지 않고, 회원 가입·로그인·로그아웃은
+회원 서버([hwahee/boilerplate-auth](https://github.com/hwahee/boilerplate-auth))가 맡으며, 브라우저에는
+토큰을 두지 않습니다.
 
-- **드라이버 교체**: `AUTH_DRIVER=none|dev` (미설정 시 `none`, `.env.example`은 `dev`).
+- **드라이버**: `AUTH_DRIVER=none|oidc` (미설정 시 `none`, 이 저장소의 `.env.example`도 서비스 id가 정해질 때까지 `none`).
   - `none` — 로그인 없음. `/api/auth/*`가 마운트되지 않아 JSON 404이고, 헤더 컨트롤도 숨겨집니다.
-  - `dev` — 아이디만으로 로그인. **처음 로그인한 아이디가 곧 가입**입니다(`users` 행 + 감사 로그).
-    아이디를 알면 누구나 그 계정으로 들어가므로 `APP_ENV=production`에서는 부팅을 거부합니다.
-  - 외부 로그인은 드라이버 하나를 더하는 것으로 붙입니다 — 쿠키에 무엇을 담고 어떻게 검증하는지는
-    `src/server/auth/session.ts` 한 곳에만 있습니다.
-- **API**: `POST /api/auth/dev-login {userId}` → `User` + 세션 쿠키, `GET /api/auth/me` →
-  `User | 401`, `POST /api/auth/logout` → 204. 상세는 `src/client/api/endpoints.ts`의 `authApi`.
-- **신원 전달**: 라우트는 `ctx.caller`(`src/server/http/context.ts`)만 읽습니다 — `member`(로그인),
-  `guest`(로그인 기능은 있지만 로그인 안 함), `anyone`(`none` — 구분 없음). 클라이언트의
-  `useCaller()`가 같은 셋(+ 로딩 중 `unknown`)을 돌려줍니다.
+  - `oidc` — 회원 서버에서 OpenID Connect로 로그인합니다. 이 서비스는 표준(OIDC)에만 의존하고
+    (`src/server/auth/oidc.ts`), 회원 서버가 무엇으로 돌아가는지 모릅니다. `OIDC_*`·`PUBLIC_URL`은
+    회원 서버에 등록한 이 서비스의 값과 같아야 합니다(`.env.example`).
+- **로그인**: 헤더의 "로그인" → `GET /api/auth/login?returnTo=` → 회원 서버의 로그인 페이지 →
+  `GET /api/auth/callback`에서 코드를 회원 정보로 바꾸고 → 시작한 페이지로 돌아옵니다. 다른 서비스에
+  이미 로그인해 있으면 회원 서버 페이지는 입력 없이 지나갑니다. 끝내지 못한 로그인(거절·만료·재사용)은
+  `/sign-in-failed`로 옵니다. 로그인 링크는 지금의 테마·디자인·언어(`theme`·`design`·`ui_locales`)를 함께
+  넘기고, 서버가 이를 authorize 요청에 붙여 회원 서버의 로그인 페이지가 같은 모습으로 뜹니다
+  (`src/shared/domain/appearance.ts`).
+- **로그아웃**: 헤더의 "로그아웃" → `GET /api/auth/logout` → 회원 서버의 확인 페이지. 확인하면 회원
+  서버가 모든 서비스의 `GET /api/auth/frontchannel-logout`을 불러 각자의 세션을 끝내고, 회원 서버의
+  로그아웃 완료 페이지에서 끝납니다.
+- **세션 쿠키**: `session-{OIDC_CLIENT_ID}`에 회원 아이디·닉네임(OIDC `sub`·`name`)과 회원 서버 세션
+  id만 담고 `SESSION_SECRET`으로 서명합니다. 토큰은 담지 않습니다. httpOnly + `SameSite=Lax`이고,
+  `PUBLIC_URL`이 https면 `Secure`입니다. 브라우저를 닫으면 사라집니다. 쿠키 이름에 서비스 id가 붙는
+  것은 localhost에서 포트가 달라도 쿠키를 함께 쓰기 때문입니다. CORS에서
+  `Access-Control-Allow-Credentials`를 켜지 않으므로 교차 출처 호출자에게는 쿠키가 가지 않습니다.
+- **회원 정보**: 이 서비스는 회원 테이블을 두지 않습니다(`0004_drop_users`). 회원은 로그인할 때
+  회원 서버가 알려 준 아이디와 닉네임으로만 압니다.
+- **API**: `GET /api/auth/me` → `User({id, displayName}) | 401`. 로그인·로그아웃은 주소로 이동합니다
+  (`authApi.signInUrl(returnTo, appearance)`, `authApi.signOutUrl` — `src/client/api/endpoints.ts`).
+- **신원 전달**: 라우트는 `ctx.caller`(`src/server/http/context.ts`)만 읽습니다 — `member`(로그인,
+  아이디·닉네임), `guest`(로그인 기능은 있지만 로그인 안 함), `anyone`(`none` — 구분 없음).
+  클라이언트의 `useCaller()`가 같은 셋(+ 로딩 중 `unknown`)을 돌려줍니다.
 - **게스트가 할 수 있는 일**: **접속을 끊은 뒤에도 의미가 남는 행동은 회원만**, 접속해 있는 동안에만
   의미가 있는 행동(예: 게임 한 판의 점수)은 게스트도 합니다. 조회는 게스트에게도 열려 있습니다.
   회원 전용 행동은 핸들러 첫 줄의 `requireMember(ctx.caller)`로 선언하며, 게스트면 로컬라이즈된
@@ -222,19 +248,15 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
   화면도 게스트에게는 쓰기 UI 대신 안내를 보여 줍니다. 게스트 상태는 서버가 아닌 탭 안에 두므로
   게스트 식별자는 없습니다. **예외는 채팅**입니다: 게스트도 메시지를 보내고, 탭이 만든 `guestId`로
   표시됩니다(서버는 이를 신원 증명으로 쓰지 않음).
-- **쿠키**: httpOnly(페이지 스크립트가 못 읽음) + `SameSite=Lax`, **same-origin 전제**입니다. CORS에서
-  `Access-Control-Allow-Credentials`를 켜지 않으므로 `CORS_ORIGINS`의 교차 출처 호출자에게는
-  쿠키가 전달되지 않습니다.
-- **아직 없는 것**: todos와 사용자의 연결(소유자 — 지금은 회원 모두가 한 목록을 함께 씀), 감사
-  로그의 행위자, 서명된 쿠키, 외부 로그인.
-- **모바일 앱**: 앱에는 **아직 로그인 화면이 없습니다.** 그래서 서버 설정에 따라 동작이 다릅니다.
-  - `none`: 앱의 모든 기능이 지금처럼 동작합니다.
-  - `dev`(`.env.example`의 값): 조회는 되지만, todos 생성·수정·삭제는 로컬라이즈된 401 `UNAUTHORIZED`가
-    되어 앱에 오류로 표시됩니다. 앱으로 쓰기까지 개발하려면 `.env`에서 `AUTH_DRIVER=none`으로 두세요.
+- **아직 없는 것**: todos와 회원의 연결(소유자 — 지금은 회원 모두가 한 목록을 함께 씀), 감사 로그의
+  행위자, 다른 서비스가 회원 정보를 묻는 API, 외부 로그인(회원 서버 쪽).
+- **모바일 앱**: 앱에는 **아직 로그인이 없습니다.** 그래서 서버 설정에 따라 동작이 다릅니다.
+  - `none`(이 저장소의 `.env.example`): 앱의 모든 기능이 그대로 동작합니다.
+  - `oidc`: 조회는 되지만 todos 생성·수정·삭제는 로컬라이즈된 401 `UNAUTHORIZED`가 됩니다. 앱으로 쓰기까지
+    개발하려면 `.env`에서 `AUTH_DRIVER=none`으로 두세요.
   - 음성 인텐트(`/api/voice/*`)는 `VOICE_TOKEN`이 자격 증명이므로 세션 쿠키와 무관하게 동작합니다.
-  - 앱 로그인을 붙일 때 서버 쪽 변경은 없습니다. RN의 `fetch`는 네이티브 쿠키 저장소(iOS
-    `NSHTTPCookieStorage`, Android OkHttp)에 쿠키를 보관하므로, `dev-login` → `me` 흐름을 화면으로
-    만들기만 하면 됩니다.
+  - 앱 로그인은 웹과 같은 회원 서버를 쓰되, 시스템 브라우저로 로그인 페이지를 열고 딥링크로 돌아오는
+    흐름이 따로 필요합니다(세션 쿠키가 시스템 브라우저에 남기 때문). 아직 정하지 않은 작업입니다.
 
 ### 채팅
 
@@ -278,8 +300,12 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
 - **아직 없는 것**: 비공개(참여자만 읽는) 방과 운영자 역할, 입력 중·읽음 표시, 메시지 수정·삭제,
   도배 제한, 지난 채팅 더 불러오기.
 - **모바일 앱**: 서버 쪽 채팅(HTTP·`/ws/chat`·presence)은 앱도 그대로 쓸 수 있지만, **앱 채팅 화면은 아직
-  없습니다.** 계약(`@shared/domain/chat`)은 공통이고, 메시지 합치기(`src/client/chat/messages.ts`)와 소켓
-  공유·재연결(`chat-connection.ts`)은 브라우저 API에 기대지 않습니다. 앱으로 옮길 때 바꿀 곳은 두 군데입니다.
+  없습니다.** 계약(`@shared/domain/chat`)은 공통이고, 메시지 합치기(`src/client/chat/messages.ts`)는 브라우저
+  API에 기대지 않습니다. 앱으로 옮길 때 바꿀 곳은 세 군데입니다.
+  - 소켓 공유·재연결(`chat-connection.ts`): 페이지를 떠나면(`pagehide`) 소켓을 닫고 bfcache에서 돌아오면
+    (`pageshow`) 다시 엽니다. 이 이벤트를 받는 대상이 생성자의 세 번째 인자 `page`이고 기본값은 `window`입니다.
+    RN에는 `window`가 있지만 `addEventListener`가 없으므로, 앱에서는 `page`를 꼭 넘겨야 합니다(예:
+    `AppState`의 background → `pagehide`, active → `pageshow`로 옮겨 주는 `EventTarget`).
   - 알림 묶기(`chat-room.ts`): 웹은 애니메이션 프레임과 숨은 탭 감지를 씁니다. 앱에서는 `AppState`로
     바꿔야 합니다.
   - 게스트 id(`guest-id.ts`): 웹은 `sessionStorage`에 둡니다. 앱에서는 메모리나 기기 저장소에 둡니다.
@@ -307,10 +333,38 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
   (`/api/*`는 제외 — 없는 API 경로는 JSON 404).
 - **디자인 시스템**: 토큰 3계층(원시 → 디자인 치수 → 시맨틱 컬러)으로 구성되며
   `/design-system` 페이지에서 전부 확인할 수 있습니다. `<html>`의 `data-theme`
-  (light/dark)와 `data-design`(A=심미성/B=시인성) 속성만으로 전환됩니다 — 헤더의 토글
+  (light/dark)와 `data-design`(`standard` 기본 / `contrast` 고대비 / `office` / `kids`) 속성만으로 전환됩니다 — 푸터의 토글
   버튼으로 즉시 스위칭됩니다. 아이콘은 lucide-react. 색상 입력(`Palette`)은 Popover API
   top layer에 떠서 어떤 `overflow` 조상 안에서도 잘리지 않으며, 값은 알파를 포함한 정규화
   hex 문자열입니다 — 설계 근거는 **[docs/palette-design.md](docs/palette-design.md)** 참고.
+- **공용 푸터**(`src/client/ui/footer.tsx`): 세 밴드 구조입니다 —
+  ① **정체성 행**(서비스명 · 태그라인 + 테마/디자인/언어 컨트롤)을 자체 hairline으로 닫고,
+  ② 그 아래 **링크 컬럼**(관련 서비스 / 연결)을 행의 좌우 끝으로 벌려 위쪽 컨트롤과 세로로
+  맞추고, ③ 마지막에 **미니멀 1줄**(저작권 · 디자인 시스템 · 약관 링크)을 둡니다. 헤더에는
+  내비게이션이 없어서 홈은 헤더의 서비스명이 링크하고, 이 서비스의 참고 페이지(디자인 시스템)는
+  서비스가 아니라 사이트 정보라 "관련 서비스"가 아닌 하단 줄에 둡니다 — 사이드바가 생기면 그리로
+  옮길 자리입니다. 본문과는 얇은
+  `border-top` 하나로 구분되며, 푸터 안의 규칙선은 정체성 행을 닫는 것 하나뿐입니다 —
+  선을 더 그으면 조용한 블록이 상자 더미가 됩니다. 좁은 화면에서는 좌우로 벌리는 대신
+  컬럼이 세로로 쌓입니다(휴대폰 폭의 양 끝은 서로 무관해 보일 만큼 멉니다). 배치는 **sticky footer**(fixed 아님) — 앱 셸이 `min-height: 100dvh` 세로
+  플렉스 컬럼이고 `<main>`이 `flex: 1 0 auto`로 남는 공간을 전부 먹습니다. 내용이 짧으면
+  푸터가 화면 맨 아래에 붙고, 길면 스크롤해야 보이는 문서 맨 끝에 놓입니다 — 어느 쪽이든
+  뷰포트에 고정되어 본문을 가리는 일은 없습니다. 톤은 본문보다 한 단계 낮게 — `--font-size-sm`(기본 스킨 기준 13px),
+  `--color-text-muted`, 링크는 hover에서 밑줄만 붙습니다. 하드코딩된 12~13px 대신 토큰을
+  쓰기 때문에 스킨마다 각자의 스케일을 유지합니다.
+  "Other Services" 컬럼은 `GET /sitemap.json`(→ `public/sitemap.json`)을 그대로 렌더링하므로
+  **서비스 추가는 코드 수정이 아니라 데이터 편집**입니다. 파일은 요청마다 디스크에서 읽히니
+  재빌드·재시작도 필요 없습니다(브라우저 캐시 5분). 목록이 로딩 중이거나 실패하면 컬럼을
+  비운 채로만 렌더링합니다 — 스크롤 하단 크롬에 스피너나 에러 배너를 띄우지 않습니다.
+  링크 URL은 절대 http(s)이거나 루트 상대 경로만 허용되며(`@shared/domain/sitemap`),
+  검증에 실패한 파일은 500으로 거절됩니다 — 깨진 링크를 배포하느니 눈에 띄게 실패합니다.
+  크롤러용 `sitemap.xml`과는 무관한 별개의 문서입니다.
+- **푸터 on/off는 라우트 단위**: 크롬은 react-router의 layout route로 표현됩니다
+  (`app.tsx`의 `AppLayout` / `AppRoutes`). 기본값은 `footer = true`라 새 라우트는 가만히
+  두면 푸터를 갖고, 뷰포트 전체를 쓰는 페이지(전체화면 에디터·임베드 위젯 등)만
+  `<Route element={<AppLayout footer={false} />}>` 그룹에 넣어 예외를 **선언**합니다.
+  라우트는 소스 순서가 아니라 구체성으로 랭킹되므로 `*` 폴백이 다른 그룹의 구체적 경로를
+  가리지 않습니다.
 - **UI 자동화 / 접근성**: 모든 인터랙티브 컴포넌트는 `testId`가 **필수 prop**이며 값은
   `src/client/testing/testids.ts` 레지스트리에서만 나옵니다. WAI-ARIA(라벨, live region,
   `aria-busy`, `aria-current`, skip link, 네이티브 컨트롤 우선)를 준수합니다.
@@ -364,8 +418,9 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
   접근 가능하며, 토큰이 비어 있으면 관리자 API는 완전히 비활성입니다.
 - **플랫폼 분기 정책**: 통합이 기본, 분기는 기록을 남기고 `*.ios.ts`/`*.android.ts`로 —
   **[docs/platform-decisions.md](docs/platform-decisions.md)**.
-- **디자인 스킨**: 웹과 같은 네 가지 디자인(A/B/office/kids). office와 kids는 웹 스킨을
-  이식한 것이며, 토큰 값이 웹 `tokens.css`와 같은지는 테스트가 CSS를 직접 파싱해 검증합니다.
+- **디자인 스킨**: 웹과 같은 네 가지 디자인(standard/contrast/office/kids). 네 스킨 모두 웹 스킨을
+  이식한 것이며, 토큰 값이 웹 `tokens.css`와 같은지는 테스트가 CSS를 직접 파싱해 검증합니다. contrast는 웹처럼
+  standard와 같은 모양에 고대비 색과 굵은 선만 다르고, 기기에 저장된 예전 이름(`a`/`b`)도 새 이름으로 읽습니다.
   kids는 모바일에서 베타입니다. 웹 `Accordion`도 같은 계약으로 이식했습니다 —
   **[docs/design-skins-mobile.md](docs/design-skins-mobile.md)**.
 - **색상 입력(Palette)**: 웹과 같은 값 계약과 같은 기본 32색(`@shared/color/presets`)을
@@ -432,15 +487,17 @@ bun run dev:mobile        # Expo 개발 서버
 
 ## 테스트 전략
 
-- **단위**: 비즈니스 로직(`TodoService`, `AuthService`, `ChatService`, `VersionPolicyService`,
-  `AppConfigService`, `PushTokenService`) — 트랜잭션 롤백, 이벤트 발행, 캐시, 성공/실패 케이스.
+- **단위**: 비즈니스 로직(`TodoService`, `ChatService`, `VersionPolicyService`, `AppConfigService`,
+  `PushTokenService`) — 트랜잭션 롤백, 이벤트 발행, 캐시, 성공/실패 케이스.
   채팅은 방별 번호, 지난 채팅의 개수·나이·보존 기한, 보존 기한 정리까지 검증합니다. 공통 계약의
   순수 함수(semver, 커서 인코딩, 업데이트 판정, 원격 설정 파싱)도 여기서 고정됩니다.
-  설정 가드(`AUTH_DRIVER=dev` × 운영)와 세션 쿠키 해석도 단위로 검증합니다.
+  설정 가드(`AUTH_DRIVER=oidc`의 필수 값), 서명된 세션 쿠키 해석, OIDC 클라이언트
+  (가짜 발급자 `src/server/auth/fake-issuer.ts` 상대로: 코드 교환, 클레임 확인, 재사용 거절)도 단위로 검증합니다.
 - **통합**: 실제 앱을 임시 포트에 띄워 HTTP로 검증 — CRUD, 두 페이지네이션 모드,
   검증 실패(400)와 로컬라이즈된 메시지, 404(없는 API 경로·메서드 포함), 배포 스큐(409),
   업그레이드 게이트(426), 원격 설정 ETag/304 + WS push, 관리자 인증(401), 푸시 브로드캐스트,
-  CORS, 헬스체크, 로그인 → `me` 200 → 로그아웃 → `me` 401, 게스트의 todos 쓰기 401
+  CORS, 헬스체크, 로그인(가짜 발급자를 거쳐 콜백 → `me` 200, 끝내지 못한 로그인은
+  `/sign-in-failed`), 로그아웃(front-channel이 지목한 세션만 종료), 게스트의 todos 쓰기 401
   (`none`에서는 허용).
 - **채팅**: HTTP(전송·지난 채팅·`after`)와 실제 WebSocket(가입, 실시간 수신, 접속자 목록과 중복 제거,
   퇴장, 없는 방)을 통합으로, 게이트웨이의 접속자 순서(목록과 경합한 변화)와 만료 정리를 대역 소켓으로,

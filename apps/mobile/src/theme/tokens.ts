@@ -5,27 +5,40 @@
  *
  * Two orthogonal axes, both switchable at runtime in Settings:
  *   - color scheme: light / dark (follows the device by default)
- *   - design variant:
- *       A      — "aesthetic": soft neutrals, indigo accent, generous radii
- *       B      — "high visibility": bigger type, heavier weights, high-contrast
- *                colors, thicker borders, larger touch targets
+ *   - design variant (the web's skin names, upstream #28):
+ *       standard — the default: soft neutrals, indigo accent, generous radii
+ *       contrast — standard's shape with high-contrast colors and thicker
+ *                  lines (border 2) — formerly B, which also had bigger type
+ *                  and controls; upstream dropped those, and so does the app
  *       office — 2000s MS Office: dense, beveled, square, motionless
  *       kids   — playground/toy (BETA on mobile): chunky, pill-shaped, bouncy
  *
  * office and kids are PORTS of the web skins (src/client/styles/tokens.css):
  * their values are copied verbatim (1rem = 16pt) rather than re-designed, so
- * the same skin reads the same on both surfaces. A and B predate that and keep
+ * the same skin reads the same on both surfaces. standard and contrast predate that and keep
  * their mobile-specific values. See docs/design-skins-mobile.md.
  */
 
+import { designFrom, type Design } from '@shared/domain/appearance';
+
 export type ColorSchemeName = 'light' | 'dark';
-export type DesignVariant = 'a' | 'b' | 'office' | 'kids';
+/** The web's skin names, shared through @shared/domain/appearance. */
+export type DesignVariant = Design;
 
 /** Every variant, in the order Settings lists them. */
-export const DESIGN_VARIANTS: readonly DesignVariant[] = ['a', 'b', 'office', 'kids'];
+export const DESIGN_VARIANTS: readonly DesignVariant[] = ['standard', 'contrast', 'office', 'kids'];
 
 export function isDesignVariant(value: unknown): value is DesignVariant {
   return DESIGN_VARIANTS.includes(value as DesignVariant);
+}
+
+/**
+ * A stored choice → its variant. Choices saved before the rename (`a`, `b`)
+ * read as `standard` / `contrast` — the same compatibility the web keeps
+ * (`designFrom`, upstream #28); the next save writes the new name.
+ */
+export function designVariantFrom(stored: string | null): DesignVariant | undefined {
+  return designFrom(stored);
 }
 
 /** @public part of the Tokens contract */
@@ -141,11 +154,12 @@ export interface Tokens {
     pill: number;
   };
   type: TypeScale;
-  /** Minimum interactive size (pt) — B is larger for motor accessibility. */
+  /** Minimum interactive size (pt); smaller visible controls pad up to it with hitSlop. */
   minTouchTarget: number;
   /**
-   * VISIBLE height of buttons/inputs. Equal to `minTouchTarget` except in
-   * office, whose compact 28pt controls keep a 44pt touch area via hitSlop.
+   * VISIBLE height of buttons/inputs (web --control-height). Where it is below
+   * `minTouchTarget` (standard/contrast 36, office 28) the touch area is kept
+   * at the platform minimum via hitSlop.
    */
   controlHeight: number;
   /** Visible height of compact chips (radio options, filters). */
@@ -153,6 +167,8 @@ export interface Tokens {
   /** Horizontal padding inside buttons/inputs. */
   controlPaddingX: number;
   borderWidth: number;
+  /** Focus ring stroke (web --focus-ring-width), drawn 2pt outside the control. */
+  focusRingWidth: number;
   /** CSS box-shadow for surfaces (cards), or null for none. */
   surfaceShadow: string | null;
   motion: MotionTokens;
@@ -164,73 +180,75 @@ export interface Tokens {
 /** Platform the tokens are resolved for (fonts differ per OS). */
 export type TokenPlatform = 'ios' | 'android';
 
-const DESIGN_A_COLORS: Record<ColorSchemeName, ColorTokens> = {
+// ── standard / contrast: verbatim from [data-design=standard|contrast][data-theme=*]
+// The scrim is per skin on the web (:root 45%, contrast 65%), not per theme.
+const STANDARD_COLORS: Record<ColorSchemeName, ColorTokens> = {
   light: {
-    bg: '#F7F7FB',
-    surface: '#FFFFFF',
-    surfaceAlt: '#EFEFF7',
-    text: '#1B1B29',
-    textMuted: '#6E6E85',
-    primary: '#4F46E5',
-    onPrimary: '#FFFFFF',
-    border: '#E2E2EE',
-    danger: '#DC2626',
-    onDanger: '#FFFFFF',
-    success: '#16A34A',
-    warning: '#D97706',
-    focus: '#4F46E5',
-    overlay: 'rgba(20, 20, 35, 0.55)',
+    bg: '#f6f6fa',
+    surface: '#ffffff',
+    surfaceAlt: '#ffffff',
+    text: '#23283a',
+    textMuted: '#69708a',
+    primary: '#5b5bd6',
+    onPrimary: '#ffffff',
+    border: '#e3e5ee',
+    danger: '#d64550',
+    onDanger: '#ffffff',
+    success: '#1a9e56',
+    warning: '#c07a12',
+    focus: '#5b5bd6',
+    overlay: 'rgba(0, 0, 0, 0.45)',
   },
   dark: {
-    bg: '#12121A',
-    surface: '#1C1C28',
-    surfaceAlt: '#262636',
-    text: '#ECECF4',
-    textMuted: '#9C9CB2',
-    primary: '#818CF8',
-    onPrimary: '#12121A',
-    border: '#323244',
-    danger: '#F87171',
-    onDanger: '#12121A',
-    success: '#4ADE80',
-    warning: '#FBBF24',
-    focus: '#818CF8',
-    overlay: 'rgba(0, 0, 0, 0.65)',
+    bg: '#14161e',
+    surface: '#1d2029',
+    surfaceAlt: '#262a36',
+    text: '#e7e9f2',
+    textMuted: '#9ba2b8',
+    primary: '#8f8ff2',
+    onPrimary: '#14161e',
+    border: '#313545',
+    danger: '#f0707a',
+    onDanger: '#14161e',
+    success: '#4ecb84',
+    warning: '#e0a33e',
+    focus: '#8f8ff2',
+    overlay: 'rgba(0, 0, 0, 0.45)',
   },
 };
 
-const DESIGN_B_COLORS: Record<ColorSchemeName, ColorTokens> = {
+const CONTRAST_COLORS: Record<ColorSchemeName, ColorTokens> = {
   light: {
-    bg: '#FFFFFF',
-    surface: '#FFFFFF',
-    surfaceAlt: '#F2F2F2',
+    bg: '#ffffff',
+    surface: '#ffffff',
+    surfaceAlt: '#f2f2f2',
     text: '#000000',
-    textMuted: '#3A3A3A',
-    primary: '#1D4ED8',
-    onPrimary: '#FFFFFF',
+    textMuted: '#3d3d3d',
+    primary: '#0038a8',
+    onPrimary: '#ffffff',
     border: '#000000',
-    danger: '#B91C1C',
-    onDanger: '#FFFFFF',
-    success: '#15803D',
-    warning: '#B45309',
-    focus: '#1D4ED8',
-    overlay: 'rgba(0, 0, 0, 0.7)',
+    danger: '#a80000',
+    onDanger: '#ffffff',
+    success: '#005e2b',
+    warning: '#7a4d00',
+    focus: '#0038a8',
+    overlay: 'rgba(0, 0, 0, 0.65)',
   },
   dark: {
     bg: '#000000',
-    surface: '#000000',
-    surfaceAlt: '#1A1A1A',
-    text: '#FFFFFF',
-    textMuted: '#D4D4D4',
-    primary: '#FFD60A',
+    surface: '#0d0d0d',
+    surfaceAlt: '#1a1a1a',
+    text: '#ffffff',
+    textMuted: '#d6d6d6',
+    primary: '#82b1ff',
     onPrimary: '#000000',
-    border: '#FFFFFF',
-    danger: '#FF6B6B',
+    border: '#ffffff',
+    danger: '#ff8080',
     onDanger: '#000000',
-    success: '#4ADE80',
-    warning: '#FFB020',
-    focus: '#FFD60A',
-    overlay: 'rgba(0, 0, 0, 0.85)',
+    success: '#57d787',
+    warning: '#ffc457',
+    focus: '#82b1ff',
+    overlay: 'rgba(0, 0, 0, 0.65)',
   },
 };
 
@@ -352,30 +370,17 @@ export function getTokens(
   platform: TokenPlatform = 'ios',
 ): Tokens {
   switch (variant) {
-    case 'b':
+    case 'contrast':
+      // Standard's shape, contrast's colors; the only non-color differences are
+      // the thicker lines (web --border-width 2px, --focus-ring-width 4px) and
+      // the darker scrim (in CONTRAST_COLORS). Formerly B — its bigger type and
+      // controls are gone with upstream #28.
       return {
+        ...getTokens('standard', scheme, platform),
         variant,
-        colors: DESIGN_B_COLORS[scheme],
-        spacing: SPACING,
-        radius: { sm: 4, md: 6, lg: 8, full: 999, control: 6, surface: 8, pill: 999 },
-        type: {
-          title: 30,
-          heading: 24,
-          body: 19,
-          caption: 16,
-          emphasis: '700',
-          fontFamily: undefined,
-          lineHeight: null,
-        },
-        minTouchTarget: 56,
-        controlHeight: 56,
-        chipHeight: 48,
-        controlPaddingX: SPACING.md,
+        colors: CONTRAST_COLORS[scheme],
         borderWidth: 2,
-        surfaceShadow: null,
-        motion: CALM_MOTION,
-        bevel: null,
-        overlay: OVERLAY,
+        focusRingWidth: 4,
       };
     case 'office':
       return {
@@ -401,6 +406,7 @@ export function getTokens(
         chipHeight: 28,
         controlPaddingX: SPACING.sm, // --space-2
         borderWidth: 1,
+        focusRingWidth: 1, // the dotted Windows focus rectangle
         surfaceShadow: null,
         // Restrained: state changes are instant — no easing, no motion.
         motion: { ...CALM_MOTION, durationFast: 0, durationExpand: 0 },
@@ -428,6 +434,7 @@ export function getTokens(
         chipHeight: 40,
         controlPaddingX: SPACING.md, // --space-4
         borderWidth: 3, // thick cartoon outline
+        focusRingWidth: 4,
         // Hard offset drop-shadow → sticker / toy-stud look.
         surfaceShadow: '0px 6px 0px rgba(0, 0, 0, 0.12), 0px 14px 26px rgba(0, 0, 0, 0.1)',
         // Exaggerated motion: overshoot spring + big squish/pop.
@@ -442,27 +449,32 @@ export function getTokens(
         bevel: null,
         overlay: OVERLAY,
       };
-    case 'a':
+    case 'standard':
+      // Port of [data-design='standard'] (shared with contrast), 1rem = 16pt.
       return {
         variant,
-        colors: DESIGN_A_COLORS[scheme],
+        colors: STANDARD_COLORS[scheme],
         spacing: SPACING,
-        radius: { sm: 8, md: 12, lg: 16, full: 999, control: 12, surface: 16, pill: 999 },
+        // --radius-sm/md/lg; controls use md (10), surfaces lg (16).
+        radius: { sm: 6, md: 10, lg: 16, full: 999, control: 10, surface: 16, pill: 999 },
         type: {
-          title: 26,
-          heading: 20,
-          body: 16,
-          caption: 13,
-          emphasis: '600',
-          fontFamily: undefined,
-          lineHeight: null,
+          title: 32, // --font-size-2xl 2rem
+          heading: 24, // --font-size-xl 1.5rem
+          body: 15, // --font-size-body 0.9375rem
+          caption: 13, // --font-size-sm 0.8125rem
+          // --font-weight-heading 650: phones have no 650 cut, and CSS font
+          // matching resolves a weight above 500 upward — 700 in the browser too.
+          emphasis: '700',
+          fontFamily: undefined, // Pretendard → -apple-system / Roboto = system
+          lineHeight: { body: 1.6, heading: 1.25 },
         },
         minTouchTarget: 44,
-        controlHeight: 44,
-        chipHeight: 36,
-        controlPaddingX: SPACING.md,
+        controlHeight: 36, // --control-height 2.25rem; hitSlop keeps 44 to touch
+        chipHeight: 36, // the web's filters are controls (Select), same height
+        controlPaddingX: 12, // --space-3
         borderWidth: 1,
-        surfaceShadow: null,
+        focusRingWidth: 2,
+        surfaceShadow: '0px 1px 3px rgba(0, 0, 0, 0.08)',
         motion: CALM_MOTION,
         bevel: null,
         overlay: OVERLAY,

@@ -39,8 +39,8 @@ boilerplate의 #7~#19를 앱 쪽에 반영한 묶음이며, **머지만으로 �
 
 ## 3. 사람에게 확인할 결정
 
-1. **앱 로그인 화면.** 앱에는 아직 로그인 화면이 없습니다. `AUTH_DRIVER=dev`(`.env.example`의 값)에서는 앱의 todo
-   쓰기가 401이 됩니다. 기본값: 만들지 않음(앱 개발 시 `AUTH_DRIVER=none`).
+1. **앱 로그인 화면.** 앱에는 아직 로그인 화면이 없습니다. 로그인이 켜진 서버(당시 `AUTH_DRIVER=dev`, upstream #23
+   이후 `AUTH_DRIVER=oidc`)에서는 앱의 todo 쓰기가 401이 됩니다. 기본값: 만들지 않음(앱 개발 시 `AUTH_DRIVER=none`).
 2. **앱 채팅 화면.** 서버 기능은 준비되어 있지만 앱 화면은 없습니다(README "채팅 > 모바일 앱"). 기본값: 만들지 않음.
 3. **앱에 React Compiler 적용.** 웹 배포 빌드에만 적용되고, 앱(Metro)에는 적용되지 않습니다. Expo의
    `babel-preset-expo`로 켤 수 있지만 검증하지 않았습니다. 기본값: 끔(앱 `.tsx`는 지금처럼 memo를 직접 씀).

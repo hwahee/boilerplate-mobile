@@ -9,7 +9,6 @@ export const en = {
   'app.title': 'Bun Fullstack Boilerplate',
   'app.tagline': 'React · Bun · Bun server monorepo starter',
 
-  'nav.todos': 'Todos',
   'nav.designSystem': 'Design System',
 
   'common.skipToContent': 'Skip to main content',
@@ -24,11 +23,18 @@ export const en = {
   'common.nextPage': 'Next page',
   'common.theme.light': 'Switch to light theme',
   'common.theme.dark': 'Switch to dark theme',
-  'common.design.a': 'Design A (aesthetic)',
-  'common.design.b': 'Design B (high visibility)',
+  'common.design.standard': 'Standard skin',
+  'common.design.contrast': 'High-contrast skin (high visibility)',
   'common.design.office': 'Office skin (classic desktop)',
   'common.design.kids': 'Kids skin (playground)',
   'common.language': 'Language',
+
+  'footer.otherServices': 'Other Services',
+  'footer.connect': 'Connect',
+  'footer.github': 'GitHub',
+  'footer.terms': 'Terms of Service',
+  'footer.privacy': 'Privacy Policy',
+  'footer.copyright': '© {year} {site}',
 
   'todos.title': 'Todos',
   'todos.description': 'A small demo domain exercising the full stack.',
@@ -76,7 +82,7 @@ export const en = {
 
   'designSystem.title': 'Design System',
   'designSystem.description':
-    'Every token and component in one place. Use the header controls to toggle theme (light/dark), design variant (A / B / Office / Kids) and language.',
+    'Every token and component in one place. Use the footer controls to toggle theme (light/dark), design variant (Standard / Contrast / Office / Kids) and language.',
   'designSystem.colors': 'Color tokens',
   'designSystem.typography': 'Typography',
   'designSystem.buttons': 'Buttons',
@@ -87,12 +93,13 @@ export const en = {
   'designSystem.colorInput': 'Color input (palette)',
   'designSystem.overlays': 'Overlays (modal / sheet / sidebar)',
 
-  'auth.userId': 'User ID',
-  'auth.userIdPlaceholder': 'user id',
-  'auth.userIdInvalid': 'Use 1–50 lowercase letters, digits, _ or -.',
   'auth.signIn': 'Sign in',
   'auth.signOut': 'Sign out',
   'auth.signedInAs': 'Signed in as {name}',
+  'auth.signInFailed.title': 'Sign-in did not finish',
+  'auth.signInFailed.message':
+    'The sign-in was turned down, took too long, or was already used. You are not signed in — please try again.',
+  'auth.signInFailed.retry': 'Sign in again',
 
   'notFound.title': 'Page not found',
   'notFound.goHome': 'Go to home',

@@ -20,6 +20,7 @@ import { authRoutes } from './routes/auth';
 import { chatMessageRoutes } from './routes/chat';
 import { livenessRoute, readinessRoute, type AppState } from './routes/health';
 import { pushTokenRoutes, pushTokenUnregisterRoute } from './routes/push-tokens';
+import { sitemapRoute } from './routes/sitemap';
 import { todoCollectionRoutes, todoItemRoutes } from './routes/todos';
 import { versionPolicyRoute } from './routes/version-policy';
 import { voiceIntentRoute } from './routes/voice';
@@ -65,9 +66,15 @@ export function buildApp(container: Container, state: AppState) {
       '/api/admin/app-config/:key': adminAppConfigRoute(container, deps),
       '/api/admin/push/broadcast': adminPushBroadcastRoute(container, deps),
       '/api/chat/rooms/:roomId/messages': chatMessageRoutes(container, deps),
-      ...(container.config.authDriver === 'dev' ? authRoutes(container, deps) : {}),
+      ...(container.config.authDriver === 'oidc' ? authRoutes(container, deps) : {}),
       /** Unknown API paths/methods → JSON 404, never the SPA's index.html. */
       '/api/*': apiFallbackRoutes(deps),
+      /**
+       * Public service directory (NOT the crawler's sitemap.xml). Lives
+       * outside /api because it is a static, cacheable document rather than
+       * part of the application API.
+       */
+      '/sitemap.json': sitemapRoute(deps),
       /**
        * WebSocket endpoint: pushes `{action, todoId}` on every todo change and
        * `{type: 'config.changed', …}` on remote-config changes (the app).

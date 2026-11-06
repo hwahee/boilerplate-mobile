@@ -5,7 +5,6 @@ export const ko: Record<MessageKey, string> = {
   'app.title': 'Bun 풀스택 보일러플레이트',
   'app.tagline': 'React · Bun · Bun server 모노레포 스타터',
 
-  'nav.todos': '할 일',
   'nav.designSystem': '디자인 시스템',
 
   'common.skipToContent': '본문으로 건너뛰기',
@@ -25,6 +24,13 @@ export const ko: Record<MessageKey, string> = {
   'common.design.office': '오피스 스킨 (클래식 데스크톱)',
   'common.design.kids': '어린이 스킨 (놀이터)',
   'common.language': '언어',
+
+  'footer.otherServices': '관련 서비스',
+  'footer.connect': '연결',
+  'footer.github': 'GitHub',
+  'footer.terms': '이용약관',
+  'footer.privacy': '개인정보처리방침',
+  'footer.copyright': '© {year} {site}',
 
   'todos.title': '할 일',
   'todos.description': '풀스택 전체를 관통하는 작은 데모 도메인입니다.',
@@ -72,7 +78,7 @@ export const ko: Record<MessageKey, string> = {
 
   'designSystem.title': '디자인 시스템',
   'designSystem.description':
-    '모든 토큰과 컴포넌트를 한곳에서 확인합니다. 헤더의 컨트롤로 테마(라이트/다크), 디자인(A / B / 오피스 / 어린이), 언어를 전환해 보세요.',
+    '모든 토큰과 컴포넌트를 한곳에서 확인합니다. 푸터의 컨트롤로 테마(라이트/다크), 디자인(A / B / 오피스 / 어린이), 언어를 전환해 보세요.',
   'designSystem.colors': '컬러 토큰',
   'designSystem.typography': '타이포그래피',
   'designSystem.buttons': '버튼',
@@ -83,12 +89,13 @@ export const ko: Record<MessageKey, string> = {
   'designSystem.colorInput': '색상 입력 (팔레트)',
   'designSystem.overlays': '오버레이 (모달 / 시트 / 사이드바)',
 
-  'auth.userId': '아이디',
-  'auth.userIdPlaceholder': '아이디',
-  'auth.userIdInvalid': '영문 소문자, 숫자, _, -로 1–50자를 입력하세요.',
   'auth.signIn': '로그인',
   'auth.signOut': '로그아웃',
   'auth.signedInAs': '{name}(으)로 로그인됨',
+  'auth.signInFailed.title': '로그인을 마치지 못했습니다',
+  'auth.signInFailed.message':
+    '로그인이 거절되었거나, 시간이 너무 지났거나, 이미 사용된 요청입니다. 로그인되지 않았으니 다시 시도해 주세요.',
+  'auth.signInFailed.retry': '다시 로그인',
 
   'notFound.title': '페이지를 찾을 수 없습니다',
   'notFound.goHome': '홈으로 이동',

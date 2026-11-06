@@ -13,6 +13,7 @@
  */
 import { VOICE_SCOPES } from '@shared/voice/catalog';
 
+import { createOidcClient, type OidcClient } from './auth/oidc';
 import type { ServerConfig } from './config';
 import { createPostgresDb, createPostgresUnitOfWork, type PostgresDb } from './db/postgres';
 import { createLogger, type Logger } from './lib/log';
@@ -28,7 +29,6 @@ import {
   createMemoryChatRoomRepository,
   createMemoryTodoRepository,
   createMemoryUnitOfWork,
-  createMemoryUserRepository,
   createMemoryVersionPolicyRepository,
   MemoryStore,
 } from './repositories/memory';
@@ -39,7 +39,6 @@ import {
   createPostgresChatMessageRepository,
   createPostgresChatRoomRepository,
   createPostgresTodoRepository,
-  createPostgresUserRepository,
   createPostgresVersionPolicyRepository,
 } from './repositories/postgres';
 import type {
@@ -50,11 +49,9 @@ import type {
   ChatRoomRepository,
   TodoRepository,
   UnitOfWork,
-  UserRepository,
   VersionPolicyRepository,
 } from './repositories/types';
 import { AppConfigService } from './services/app-config-service';
-import { AuthService } from './services/auth-service';
 import { PushTokenService } from './services/push-token-service';
 import { ChatService } from './services/chat-service';
 import { TodoService } from './services/todo-service';
@@ -76,7 +73,8 @@ export interface Container {
   voiceService(): VoiceService;
   /** Resolves the caller of /api/voice/* — the swap point for real auth. */
   voiceTokenVerifier(): VoiceTokenVerifier;
-  authService(): AuthService;
+  /** Signs members in through the member server; only with AUTH_DRIVER=oidc. */
+  oidcClient(): OidcClient;
   chatService(): ChatService;
   /** This process's chat sockets — one per process, like everything here. */
   chatGateway(): ChatGateway;
@@ -130,11 +128,6 @@ export function createContainer(
     config.dbDriver === 'postgres'
       ? createPostgresTodoRepository(postgres())
       : createMemoryTodoRepository(memoryStore()),
-  );
-  const userRepository = lazy<UserRepository>(() =>
-    config.dbDriver === 'postgres'
-      ? createPostgresUserRepository(postgres())
-      : createMemoryUserRepository(memoryStore()),
   );
   const auditLogRepository = lazy<AuditLogRepository>(() =>
     config.dbDriver === 'postgres'
@@ -216,21 +209,16 @@ export function createContainer(
       createStaticVoiceTokenVerifier(config.voiceToken, VOICE_SCOPES),
   );
 
-  const authService = lazy(
-    () =>
-      new AuthService({
-        users: userRepository(),
-        auditLogs: auditLogRepository(),
-        uow: unitOfWork(),
-      }),
-  );
+  const oidcClient = lazy<OidcClient>(() => {
+    if (!config.oidc) throw new Error('AUTH_DRIVER=oidc is not configured');
+    return createOidcClient(config.oidc);
+  });
 
   const chatService = lazy(
     () =>
       new ChatService({
         rooms: chatRoomRepository(),
         messages: chatMessageRepository(),
-        users: userRepository(),
         uow: unitOfWork(),
         events: pubsub(),
       }),
@@ -256,7 +244,7 @@ export function createContainer(
     pushTokenService,
     voiceService,
     voiceTokenVerifier,
-    authService,
+    oidcClient,
     chatService,
     chatGateway,
     pubsub,

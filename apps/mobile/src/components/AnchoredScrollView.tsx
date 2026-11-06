@@ -15,6 +15,8 @@ import {
 } from 'react';
 import { ScrollView, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import type { ScrollViewInstance, ViewInstance } from './native-refs';
+
 export interface ScrollAnchor {
   /** Scroll by `dy` points (positive = content moves up). */
   scrollBy: (dy: number, animated: boolean) => void;
@@ -33,10 +35,10 @@ export interface AnchoredScrollViewProps extends PropsWithChildren {
 }
 
 export function AnchoredScrollView({ contentContainerStyle, children }: AnchoredScrollViewProps) {
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   // The frame is measured on a wrapping View: it has exactly the ScrollView's
   // bounds, and View's measureInWindow is typed (ScrollView's is not).
-  const frameRef = useRef<View>(null);
+  const frameRef = useRef<ViewInstance>(null);
   const offset = useRef(0);
 
   const scrollBy = useCallback((dy: number, animated: boolean) => {

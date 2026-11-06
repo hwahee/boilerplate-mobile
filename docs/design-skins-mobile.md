@@ -23,7 +23,7 @@ PR #4(아코디언)는 **웹 코드로는 이미 이 저장소에 머지되어 �
 3. **A/B는 건드리지 않는다.** A/B는 원래 앱 전용 값(웹과 다름)을 쓰고 있었고, 이번 작업
    이후에도 렌더링 결과가 바뀌지 않습니다. 스킨 규칙 함수는 A/B에 대해 항상 빈 객체를
    반환하며, 이 역시 테스트(`skin.test.ts`)로 고정되어 있습니다.
-4. **의존성 추가 없음.** 베벨·그라디언트·그림자·아웃라인은 RN 0.81(New Architecture)이
+4. **의존성 추가 없음.** 베벨·그라디언트·그림자·아웃라인은 RN(New Architecture, 지금은 0.88)이
    기본 제공하는 스타일 속성으로 그립니다.
 
 ## 2. 구조 — 웹의 CSS 계층을 앱에 대응시키기
@@ -52,23 +52,23 @@ PR #4(아코디언)는 **웹 코드로는 이미 이 저장소에 머지되어 �
 
 ## 3. office — 웹 규칙과 앱 구현 대응표
 
-| 웹 규칙(`main.css` / `tokens.css`)                                | 앱 구현                                                              |
-| ----------------------------------------------------------------- | -------------------------------------------------------------------- |
-| 색 팔레트(Luna 실버 / 그래파이트) 전부                            | `OFFICE_COLORS` (테스트로 일치 검증)                                 |
-| 글자 크기 11/13/16/18/22px, 제목 700, line-height 1.4             | `type` caption 11 / body 13 / heading 18 / title 22, lineHeight 1.4  |
-| `--control-height: 1.75rem`, padding-x `--space-2`                | `controlHeight: 28`, `controlPaddingX: 8`                            |
-| `--radius-control/surface: 2px`, `.badge { border-radius: 2px }`  | `radius.control/surface/pill = 2`                                    |
-| `--duration-fast/expand: 0s` (모션 없음)                          | `motion.durationFast/Expand = 0` → 모든 전환이 즉시                  |
-| `.btn`: 1px 볼록 베벨(좌상 밝음, 우하 어두움), 글꼴 굵기 400      | `buttonSkin` → `bevelBorder('raised')`, `labelWeight: '400'`         |
-| `.btn--secondary/ghost`: 버튼 면 그라디언트, 글자색 text          | `experimental_backgroundImage: linear-gradient(faceTop, faceBottom)` |
-| `.btn--primary`: `color-mix(primary 72%, white)` → primary        | `mixSrgb(primary, white, 0.72)` → primary 그라디언트                 |
-| `.btn:active`: 베벨 반전 + `translate(1px, 1px)` (박스 크기 불변) | 눌림 상태에서 `bevelBorder('sunken')` + `translateX/Y: 1`            |
-| `.btn:disabled`: opacity .55                                      | `opacity: 0.55`                                                      |
-| `.field__input`: 1px 오목 베벨, radius 1px                        | `fieldSkin` → `bevelBorder('sunken')`, `borderRadius: 1`             |
-| `:focus-visible`: 1px 점선 사각형, offset 1px                     | 포커스된 입력에 `outlineStyle: 'dotted'`, width 1, offset 1          |
-| `.card`: 볼록 그룹 박스 베벨                                      | `cardSkin` → `bevelBorder('raised')`                                 |
-| `.accordion__trigger`: 버튼 면 그라디언트, 항목 구분선 bevel-dark | `accordionSkin` → 면 그라디언트, `separatorColor: bevel.dark`        |
-| 글꼴 `'Segoe UI', Tahoma, Geneva, Verdana, …`                     | 아래 "글꼴" 참고                                                     |
+| 웹 규칙(`main.css` / `tokens.css`)                                | 앱 구현                                                             |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------- |
+| 색 팔레트(Luna 실버 / 그래파이트) 전부                            | `OFFICE_COLORS` (테스트로 일치 검증)                                |
+| 글자 크기 11/13/16/18/22px, 제목 700, line-height 1.4             | `type` caption 11 / body 13 / heading 18 / title 22, lineHeight 1.4 |
+| `--control-height: 1.75rem`, padding-x `--space-2`                | `controlHeight: 28`, `controlPaddingX: 8`                           |
+| `--radius-control/surface: 2px`, `.badge { border-radius: 2px }`  | `radius.control/surface/pill = 2`                                   |
+| `--duration-fast/expand: 0s` (모션 없음)                          | `motion.durationFast/Expand = 0` → 모든 전환이 즉시                 |
+| `.btn`: 1px 볼록 베벨(좌상 밝음, 우하 어두움), 글꼴 굵기 400      | `buttonSkin` → `bevelBorder('raised')`, `labelWeight: '400'`        |
+| `.btn--secondary/ghost`: 버튼 면 그라디언트, 글자색 text          | `backgroundImage: linear-gradient(faceTop, faceBottom)`             |
+| `.btn--primary`: `color-mix(primary 72%, white)` → primary        | `mixSrgb(primary, white, 0.72)` → primary 그라디언트                |
+| `.btn:active`: 베벨 반전 + `translate(1px, 1px)` (박스 크기 불변) | 눌림 상태에서 `bevelBorder('sunken')` + `translateX/Y: 1`           |
+| `.btn:disabled`: opacity .55                                      | `opacity: 0.55`                                                     |
+| `.field__input`: 1px 오목 베벨, radius 1px                        | `fieldSkin` → `bevelBorder('sunken')`, `borderRadius: 1`            |
+| `:focus-visible`: 1px 점선 사각형, offset 1px                     | 포커스된 입력에 `outlineStyle: 'dotted'`, width 1, offset 1         |
+| `.card`: 볼록 그룹 박스 베벨                                      | `cardSkin` → `bevelBorder('raised')`                                |
+| `.accordion__trigger`: 버튼 면 그라디언트, 항목 구분선 bevel-dark | `accordionSkin` → 면 그라디언트, `separatorColor: bevel.dark`       |
+| 글꼴 `'Segoe UI', Tahoma, Geneva, Verdana, …`                     | 아래 "글꼴" 참고                                                    |
 
 **글꼴.** 웹 글꼴 스택을 **각 휴대폰에 실제로 설치된 첫 글꼴**로 풀었습니다. 휴대폰
 브라우저에서 웹 office 스킨을 열면 렌더링되는 글꼴과 같습니다.

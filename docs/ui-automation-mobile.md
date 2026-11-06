@@ -73,14 +73,14 @@
 기다리세요. 모든 오버레이는 네이티브 레이어 하나 안에 그려지므로, 열린 오버레이 뒤의 화면
 요소는 자동화 도구에서 보이지 않을 수 있습니다([overlay-mobile.md](overlay-mobile.md)).
 
-설정의 디자인 선택지는 `settings.design.a` / `.b` / `.office` / `.kids`입니다.
+설정의 디자인 선택지는 `settings.design.standard` / `.contrast` / `.office` / `.kids`입니다(upstream #28 이전 이름은 `.a` / `.b`).
 
 ## E2E — Maestro (권장)
 
 시나리오는 [`apps/mobile/e2e/`](../apps/mobile/e2e)에 YAML로 있습니다:
 
 - `boot-and-create-todo.yaml` — 부트(광고 스킵) → 할 일 생성/토글
-- `settings-theme-design.yaml` — 테마/디자인(A/B/office/kids)/언어 전환
+- `settings-theme-design.yaml` — 테마/디자인(standard/contrast/office/kids)/언어 전환
 - `design-system-palette.yaml` — 팔레트: 프리셋 선택, hex 오류/정상 입력
 - `design-system-overlays.yaml` — 오버레이: 모달 위 확인창(LIFO), resolve 값, 시트/사이드바
 

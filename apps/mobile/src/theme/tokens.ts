@@ -5,27 +5,40 @@
  *
  * Two orthogonal axes, both switchable at runtime in Settings:
  *   - color scheme: light / dark (follows the device by default)
- *   - design variant:
- *       A      — "aesthetic": soft neutrals, indigo accent, generous radii
- *       B      — "high visibility": bigger type, heavier weights, high-contrast
- *                colors, thicker borders, larger touch targets
+ *   - design variant (the web's skin names, upstream #28):
+ *       standard — the default: soft neutrals, indigo accent, generous radii
+ *       contrast — standard's shape with high-contrast colors and thicker
+ *                  lines (border 2) — formerly B, which also had bigger type
+ *                  and controls; upstream dropped those, and so does the app
  *       office — 2000s MS Office: dense, beveled, square, motionless
  *       kids   — playground/toy (BETA on mobile): chunky, pill-shaped, bouncy
  *
  * office and kids are PORTS of the web skins (src/client/styles/tokens.css):
  * their values are copied verbatim (1rem = 16pt) rather than re-designed, so
- * the same skin reads the same on both surfaces. A and B predate that and keep
+ * the same skin reads the same on both surfaces. standard and contrast predate that and keep
  * their mobile-specific values. See docs/design-skins-mobile.md.
  */
 
+import { designFrom, type Design } from '@shared/domain/appearance';
+
 export type ColorSchemeName = 'light' | 'dark';
-export type DesignVariant = 'a' | 'b' | 'office' | 'kids';
+/** The web's skin names, shared through @shared/domain/appearance. */
+export type DesignVariant = Design;
 
 /** Every variant, in the order Settings lists them. */
-export const DESIGN_VARIANTS: readonly DesignVariant[] = ['a', 'b', 'office', 'kids'];
+export const DESIGN_VARIANTS: readonly DesignVariant[] = ['standard', 'contrast', 'office', 'kids'];
 
 export function isDesignVariant(value: unknown): value is DesignVariant {
   return DESIGN_VARIANTS.includes(value as DesignVariant);
+}
+
+/**
+ * A stored choice → its variant. Choices saved before the rename (`a`, `b`)
+ * read as `standard` / `contrast` — the same compatibility the web keeps
+ * (`designFrom`, upstream #28); the next save writes the new name.
+ */
+export function designVariantFrom(stored: string | null): DesignVariant | undefined {
+  return designFrom(stored);
 }
 
 /** @public part of the Tokens contract */
@@ -164,7 +177,7 @@ export interface Tokens {
 /** Platform the tokens are resolved for (fonts differ per OS). */
 export type TokenPlatform = 'ios' | 'android';
 
-const DESIGN_A_COLORS: Record<ColorSchemeName, ColorTokens> = {
+const STANDARD_COLORS: Record<ColorSchemeName, ColorTokens> = {
   light: {
     bg: '#F7F7FB',
     surface: '#FFFFFF',
@@ -199,7 +212,7 @@ const DESIGN_A_COLORS: Record<ColorSchemeName, ColorTokens> = {
   },
 };
 
-const DESIGN_B_COLORS: Record<ColorSchemeName, ColorTokens> = {
+const CONTRAST_COLORS: Record<ColorSchemeName, ColorTokens> = {
   light: {
     bg: '#FFFFFF',
     surface: '#FFFFFF',
@@ -352,30 +365,15 @@ export function getTokens(
   platform: TokenPlatform = 'ios',
 ): Tokens {
   switch (variant) {
-    case 'b':
+    case 'contrast':
+      // Standard's shape, contrast's colors; the only non-color difference is
+      // the thicker line (web --border-width 2px). Formerly B — its bigger
+      // type and controls are gone with upstream #28.
       return {
+        ...getTokens('standard', scheme, platform),
         variant,
-        colors: DESIGN_B_COLORS[scheme],
-        spacing: SPACING,
-        radius: { sm: 4, md: 6, lg: 8, full: 999, control: 6, surface: 8, pill: 999 },
-        type: {
-          title: 30,
-          heading: 24,
-          body: 19,
-          caption: 16,
-          emphasis: '700',
-          fontFamily: undefined,
-          lineHeight: null,
-        },
-        minTouchTarget: 56,
-        controlHeight: 56,
-        chipHeight: 48,
-        controlPaddingX: SPACING.md,
+        colors: CONTRAST_COLORS[scheme],
         borderWidth: 2,
-        surfaceShadow: null,
-        motion: CALM_MOTION,
-        bevel: null,
-        overlay: OVERLAY,
       };
     case 'office':
       return {
@@ -442,10 +440,10 @@ export function getTokens(
         bevel: null,
         overlay: OVERLAY,
       };
-    case 'a':
+    case 'standard':
       return {
         variant,
-        colors: DESIGN_A_COLORS[scheme],
+        colors: STANDARD_COLORS[scheme],
         spacing: SPACING,
         radius: { sm: 8, md: 12, lg: 16, full: 999, control: 12, surface: 16, pill: 999 },
         type: {

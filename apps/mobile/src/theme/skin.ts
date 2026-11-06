@@ -241,7 +241,7 @@ export interface PaletteSkin {
 
 /**
  * Port of the `.palette*` rules in main.css plus their office/kids overrides.
- * A/B size swatches to the touch minimum (their own mobile values); office and
+ * standard/contrast size swatches to the touch minimum (their own mobile values); office and
  * kids keep the web's `--control-height * 0.75`, with hitSlop filling in.
  */
 export function paletteSkin(tokens: Tokens): PaletteSkin {

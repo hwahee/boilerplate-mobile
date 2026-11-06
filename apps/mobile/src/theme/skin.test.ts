@@ -28,8 +28,8 @@ describe('color helpers', () => {
   });
 });
 
-describe('designs A and B are untouched by skin rules', () => {
-  test.each(['a', 'b'] as const)('%s', (variant) => {
+describe('standard and contrast are untouched by skin rules', () => {
+  test.each(['standard', 'contrast'] as const)('%s', (variant) => {
     const tokens = getTokens(variant, 'light');
     expect(buttonSkin(tokens, 'primary', pressed)).toEqual({ container: {} });
     expect(fieldSkin(tokens, { focused: true })).toEqual({});
@@ -125,8 +125,8 @@ describe('kids', () => {
 });
 
 describe('palette', () => {
-  test('A/B swatches are touch-sized with the web selection ring', () => {
-    const tokens = getTokens('a', 'light');
+  test('standard/contrast swatches are touch-sized with the web selection ring', () => {
+    const tokens = getTokens('standard', 'light');
     const skin = paletteSkin(tokens);
     expect(skin.swatchSize).toBe(tokens.minTouchTarget);
     expect(skin.swatchHitSlop).toBeUndefined();

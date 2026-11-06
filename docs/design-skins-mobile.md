@@ -2,7 +2,7 @@
 
 원본 보일러플레이트의 PR #2(office 스킨), PR #3(kids 스킨), `4b0c30e`(디자인 순환 수정),
 PR #4(아코디언)는 **웹 코드로는 이미 이 저장소에 머지되어 있었지만** 앱(`apps/mobile`)에는
-반영되지 않았습니다. 앱은 디자인 A/B만 알고 있었습니다. 이 문서는 그 공백을 메운 이식의
+반영되지 않았습니다. 앱은 두 디자인(당시 이름 A/B, 지금의 standard/contrast)만 알고 있었습니다. 이 문서는 그 공백을 메운 이식의
 기준과 결과를 기록합니다.
 
 | 스킨   | 이식 수준                                                                      |
@@ -20,8 +20,8 @@ PR #4(아코디언)는 **웹 코드로는 이미 이 저장소에 머지되어 �
 2. **일치는 테스트가 강제한다.** `apps/mobile/src/theme/tokens.test.ts`는 웹의 `tokens.css`를
    **직접 파싱해서** 앱 토큰과 비교합니다. 숫자를 테스트에 복사해 두지 않았으므로, 업스트림이
    스킨 값을 바꾸면 앱이 따라갈 때까지 `bun run check`가 실패합니다.
-3. **A/B는 건드리지 않는다.** A/B는 원래 앱 전용 값(웹과 다름)을 쓰고 있었고, 이번 작업
-   이후에도 렌더링 결과가 바뀌지 않습니다. 스킨 규칙 함수는 A/B에 대해 항상 빈 객체를
+3. **standard/contrast는 건드리지 않는다.** 두 디자인은 원래 앱 전용 값(웹과 다름)을 쓰고 있었고, 이번
+   작업 이후에도 렌더링 결과가 바뀌지 않습니다. 스킨 규칙 함수는 두 디자인에 대해 항상 빈 객체를
    반환하며, 이 역시 테스트(`skin.test.ts`)로 고정되어 있습니다.
 4. **의존성 추가 없음.** 베벨·그라디언트·그림자·아웃라인은 RN 0.81(New Architecture)이
    기본 제공하는 스타일 속성으로 그립니다.
@@ -39,7 +39,7 @@ PR #4(아코디언)는 **웹 코드로는 이미 이 저장소에 머지되어 �
 
 토큰에 새로 생긴 의미 단위:
 
-| 토큰                          | 뜻                                                   | A/B 값                     |
+| 토큰                          | 뜻                                                   | standard/contrast 값       |
 | ----------------------------- | ---------------------------------------------------- | -------------------------- |
 | `radius.control/surface/pill` | 버튼·입력 / 카드 / 배지·칩의 모서리                  | 기존 `md` / `lg` / `full`  |
 | `controlHeight`, `chipHeight` | **보이는** 컨트롤/칩 높이                            | 기존 `minTouchTarget`(-8)  |
@@ -140,7 +140,7 @@ Segoe UI/Tahoma는 Microsoft 라이선스 글꼴이라 앱에 번들할 수 없�
 
 - 자동: `bun run check`
   - `tokens.test.ts`: 웹 CSS를 파싱해 office·kids의 색·크기·모션·베벨이 같은지 비교
-  - `skin.test.ts`: 스킨 규칙과 A/B 불변 확인
+  - `skin.test.ts`: 스킨 규칙과 standard/contrast 불변 확인
   - `accordion-scroll.test.ts`: 스크롤 보정 계산
 - 번들: `expo export --platform android`로 Hermes 번들 생성까지 확인했습니다.
 - **실기기·시뮬레이터 시각 확인은 아직 하지 않았습니다.** 다음 항목을 확인해야 합니다.
@@ -149,3 +149,16 @@ Segoe UI/Tahoma는 Microsoft 라이선스 글꼴이라 앱에 번들할 수 없�
   - [ ] 아코디언: office는 즉시 토글, kids는 스프링. single 모드에서 트리거가 고정되는지
   - [ ] iOS Verdana / Chalkboard SE 글꼴 적용, Android 시스템 글꼴
   - [ ] Maestro: `apps/mobile/e2e/settings-theme-design.yaml`
+
+## 7. 스킨 이름 변경 — upstream #28
+
+웹이 디자인 A/B를 `standard`/`contrast`로 바꾸면서 contrast를 **standard와 같은 모양**으로 만들었습니다.
+다른 것은 색, 테두리 2px, 포커스 링 4px, 진한 스크림뿐입니다. 앱도 같은 규칙을 따릅니다.
+
+- 이름: `DesignVariant`는 공통 `@shared/domain/appearance`의 `Design`(`standard`·`contrast`·`office`·`kids`)입니다.
+  설정 testID는 `settings.design.standard` / `.contrast`가 되었습니다.
+- contrast = standard의 치수 + 예전 B의 색(`CONTRAST_COLORS`, 스크림 포함) + 테두리 2(웹 `--border-width`, 테스트가
+  파싱해 비교). 예전 B의 앱 전용 큰 글자(본문 19)·큰 컨트롤(56)은 **없어졌습니다**(upstream 가이드 3절 기본값).
+  앱의 standard/contrast에는 포커스 링이 없어(입력 테두리만 있음) 4px 포커스 링은 해당이 없습니다.
+- 저장값 호환: 기기에 저장된 `a`/`b`는 `designVariantFrom()`(= 웹의 `designFrom()`)이 `standard`/`contrast`로
+  읽고, 다음 저장 때 새 이름으로 씁니다. 업데이트 전 앱을 쓰던 사용자의 선택이 유지됩니다.

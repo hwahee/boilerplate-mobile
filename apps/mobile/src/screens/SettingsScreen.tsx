@@ -1,6 +1,6 @@
 /**
  * Settings — language (device/EN/KO), theme (system/light/dark), design
- * variant (A/B/office/kids), OTA update check, and the dev-only design-system gallery.
+ * variant (standard/contrast/office/kids), OTA update check, and the dev-only design-system gallery.
  * Every preference is persisted through the kv-store facade.
  */
 import { useState } from 'react';

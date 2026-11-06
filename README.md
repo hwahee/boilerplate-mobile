@@ -36,7 +36,7 @@ src/
     ├── auth/        # 헤더의 로그인/로그아웃 컨트롤
     ├── chat/        # 채팅 코어 — 소켓·방 상태·useChatRoomState/Actions (UI 없음)
     ├── ui/          # 디자인 시스템 컴포넌트
-    ├── styles/      # 디자인 토큰 (라이트/다크 × 디자인 A/B)
+    ├── styles/      # 디자인 토큰 (라이트/다크 × 스킨 4종)
     ├── theme/ i18n/ # 테마·로케일 컨텍스트
     ├── testing/     # data-testid 레지스트리 (docs/ui-automation.md 참고)
     └── pages/       # Home(Todos + 채팅), Design System, 로그인 실패, NotFound
@@ -50,7 +50,7 @@ apps/
     ├── src/boot/    # 부트 상태 머신 (config·정책·광고 슬롯 게이트)
     ├── src/version/ # 강제/선택 업데이트, OTA·스토어 파사드
     ├── src/config/  # 원격 설정(캐시·폴링·WS 푸시), 환경 변수
-    ├── src/theme/   # 디자인 토큰 (라이트/다크 × A/B/office/kids) + 스킨 규칙
+    ├── src/theme/   # 디자인 토큰 (라이트/다크 × standard/contrast/office/kids) + 스킨 규칙
     ├── src/i18n/    # 앱 메시지 카탈로그 + 로케일 컨텍스트
     ├── src/testing/ # testID 레지스트리 (docs/ui-automation-mobile.md 참고)
     ├── src/voice/   # ★ 음성 명령이 실제로 실행되는 곳 (Siri/Bixby/Assistant 공통)
@@ -333,7 +333,7 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
   (`/api/*`는 제외 — 없는 API 경로는 JSON 404).
 - **디자인 시스템**: 토큰 3계층(원시 → 디자인 치수 → 시맨틱 컬러)으로 구성되며
   `/design-system` 페이지에서 전부 확인할 수 있습니다. `<html>`의 `data-theme`
-  (light/dark)와 `data-design`(A=심미성/B=시인성) 속성만으로 전환됩니다 — 푸터의 토글
+  (light/dark)와 `data-design`(`standard` 기본 / `contrast` 고대비 / `office` / `kids`) 속성만으로 전환됩니다 — 푸터의 토글
   버튼으로 즉시 스위칭됩니다. 아이콘은 lucide-react. 색상 입력(`Palette`)은 Popover API
   top layer에 떠서 어떤 `overflow` 조상 안에서도 잘리지 않으며, 값은 알파를 포함한 정규화
   hex 문자열입니다 — 설계 근거는 **[docs/palette-design.md](docs/palette-design.md)** 참고.
@@ -349,9 +349,9 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
   컬럼이 세로로 쌓입니다(휴대폰 폭의 양 끝은 서로 무관해 보일 만큼 멉니다). 배치는 **sticky footer**(fixed 아님) — 앱 셸이 `min-height: 100dvh` 세로
   플렉스 컬럼이고 `<main>`이 `flex: 1 0 auto`로 남는 공간을 전부 먹습니다. 내용이 짧으면
   푸터가 화면 맨 아래에 붙고, 길면 스크롤해야 보이는 문서 맨 끝에 놓입니다 — 어느 쪽이든
-  뷰포트에 고정되어 본문을 가리는 일은 없습니다. 톤은 본문보다 한 단계 낮게 — `--font-size-sm`(디자인 A 기준 13px),
+  뷰포트에 고정되어 본문을 가리는 일은 없습니다. 톤은 본문보다 한 단계 낮게 — `--font-size-sm`(기본 스킨 기준 13px),
   `--color-text-muted`, 링크는 hover에서 밑줄만 붙습니다. 하드코딩된 12~13px 대신 토큰을
-  쓰기 때문에 시인성 디자인(B)·스킨에서도 각자의 스케일을 유지합니다.
+  쓰기 때문에 스킨마다 각자의 스케일을 유지합니다.
   "Other Services" 컬럼은 `GET /sitemap.json`(→ `public/sitemap.json`)을 그대로 렌더링하므로
   **서비스 추가는 코드 수정이 아니라 데이터 편집**입니다. 파일은 요청마다 디스크에서 읽히니
   재빌드·재시작도 필요 없습니다(브라우저 캐시 5분). 목록이 로딩 중이거나 실패하면 컬럼을
@@ -418,7 +418,8 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
   접근 가능하며, 토큰이 비어 있으면 관리자 API는 완전히 비활성입니다.
 - **플랫폼 분기 정책**: 통합이 기본, 분기는 기록을 남기고 `*.ios.ts`/`*.android.ts`로 —
   **[docs/platform-decisions.md](docs/platform-decisions.md)**.
-- **디자인 스킨**: 웹과 같은 네 가지 디자인(A/B/office/kids). office와 kids는 웹 스킨을
+- **디자인 스킨**: 웹과 같은 네 가지 디자인(standard/contrast/office/kids). contrast는 웹처럼 standard와 같은
+  모양에 고대비 색과 굵은 테두리만 다르고, 기기에 저장된 예전 이름(`a`/`b`)도 새 이름으로 읽습니다. office와 kids는 웹 스킨을
   이식한 것이며, 토큰 값이 웹 `tokens.css`와 같은지는 테스트가 CSS를 직접 파싱해 검증합니다.
   kids는 모바일에서 베타입니다. 웹 `Accordion`도 같은 계약으로 이식했습니다 —
   **[docs/design-skins-mobile.md](docs/design-skins-mobile.md)**.

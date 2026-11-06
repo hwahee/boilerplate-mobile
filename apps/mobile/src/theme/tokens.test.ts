@@ -8,7 +8,13 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { DESIGN_VARIANTS, getTokens, isDesignVariant, type ColorTokens } from './tokens';
+import {
+  DESIGN_VARIANTS,
+  designVariantFrom,
+  getTokens,
+  isDesignVariant,
+  type ColorTokens,
+} from './tokens';
 
 const css = readFileSync(
   join(import.meta.dir, '../../../../src/client/styles/tokens.css'),
@@ -17,7 +23,12 @@ const css = readFileSync(
 
 /** Custom properties declared in the block whose selector is exactly `selector`. */
 function block(selector: string): Record<string, string> {
-  const start = css.indexOf(`${selector} {`);
+  // The whole selector, not the tail of a list: `[data-design='contrast'] {`
+  // also ends `[data-design='standard'],\n[data-design='contrast'] {`.
+  let start = css.indexOf(`${selector} {`);
+  while (start >= 0 && !/(^|\})\s*$/.test(css.slice(0, start))) {
+    start = css.indexOf(`${selector} {`, start + 1);
+  }
   if (start < 0) throw new Error(`selector not found: ${selector}`);
   const body = css.slice(css.indexOf('{', start) + 1, css.indexOf('}', start));
   const vars: Record<string, string> = {};
@@ -138,7 +149,7 @@ describe('kids-only tokens', () => {
 
 describe('overlay tokens match the web :root', () => {
   test('geometry', () => {
-    const { overlay } = getTokens('a', 'light');
+    const { overlay } = getTokens('standard', 'light');
     expect(overlay.widthSm).toBe(points(resolve(root, 'overlay-width-sm')));
     expect(overlay.widthMd).toBe(points(resolve(root, 'overlay-width-md')));
     expect(overlay.widthLg).toBe(points(resolve(root, 'overlay-width-lg')));
@@ -158,18 +169,40 @@ describe('overlay tokens match the web :root', () => {
 });
 
 describe('design variants', () => {
-  test('A and B keep their mobile values (no web port)', () => {
-    const a = getTokens('a', 'light');
-    expect(a.controlHeight).toBe(a.minTouchTarget);
-    expect(a.radius.control).toBe(a.radius.md);
-    expect(a.radius.surface).toBe(a.radius.lg);
-    expect(a.bevel).toBeNull();
-    expect(a.motion.durationFast).toBe(ms(root['duration-fast']!));
+  test('standard keeps its mobile values (no web port)', () => {
+    const standard = getTokens('standard', 'light');
+    expect(standard.controlHeight).toBe(standard.minTouchTarget);
+    expect(standard.radius.control).toBe(standard.radius.md);
+    expect(standard.radius.surface).toBe(standard.radius.lg);
+    expect(standard.bevel).toBeNull();
+    expect(standard.motion.durationFast).toBe(ms(root['duration-fast']!));
   });
+
+  test.each(['light', 'dark'] as const)(
+    'contrast (%s) is standard with its own colors and the web border width',
+    (scheme) => {
+      const { colors, borderWidth, variant, ...shape } = getTokens('contrast', scheme);
+      const standard = getTokens('standard', scheme);
+      expect(variant).toBe('contrast');
+      expect(borderWidth).toBe(points(resolve(block(`[data-design='contrast']`), 'border-width')));
+      expect(colors).not.toEqual(standard.colors);
+      const { colors: _c, borderWidth: _b, variant: _v, ...standardShape } = standard;
+      expect(shape).toEqual(standardShape);
+    },
+  );
 
   test('isDesignVariant accepts exactly the four variants', () => {
     for (const variant of DESIGN_VARIANTS) expect(isDesignVariant(variant)).toBe(true);
+    expect(isDesignVariant('a')).toBe(false);
     expect(isDesignVariant('c')).toBe(false);
     expect(isDesignVariant(null)).toBe(false);
+  });
+
+  test('choices saved before the rename still read (a → standard, b → contrast)', () => {
+    expect(designVariantFrom('a')).toBe('standard');
+    expect(designVariantFrom('b')).toBe('contrast');
+    expect(designVariantFrom('kids')).toBe('kids');
+    expect(designVariantFrom('c')).toBeUndefined();
+    expect(designVariantFrom(null)).toBeUndefined();
   });
 });

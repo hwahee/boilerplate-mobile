@@ -65,7 +65,7 @@ export function buildApp(container: Container, state: AppState) {
       '/api/admin/app-config/:key': adminAppConfigRoute(container, deps),
       '/api/admin/push/broadcast': adminPushBroadcastRoute(container, deps),
       '/api/chat/rooms/:roomId/messages': chatMessageRoutes(container, deps),
-      ...(container.config.authDriver === 'dev' ? authRoutes(container, deps) : {}),
+      ...(container.config.authDriver === 'oidc' ? authRoutes(container, deps) : {}),
       /** Unknown API paths/methods → JSON 404, never the SPA's index.html. */
       '/api/*': apiFallbackRoutes(deps),
       /**

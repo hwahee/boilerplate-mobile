@@ -324,7 +324,7 @@ export function TodosScreen() {
               >
                 {t('todos.endReached')}
               </AppText>
-            ) : null
+            ) : undefined
           }
         />
       )}

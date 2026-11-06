@@ -30,7 +30,12 @@ function defaultDevBaseUrl(): string {
   return Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
 }
 
-const apiBaseUrl = extra.apiBaseUrl ?? defaultDevBaseUrl();
+// `extra` arrives from the manifest, not from our types: only a non-empty
+// string is a URL (SDK 58 delivers a null value as `{}`, for one).
+const apiBaseUrl =
+  typeof extra.apiBaseUrl === 'string' && extra.apiBaseUrl !== ''
+    ? extra.apiBaseUrl
+    : defaultDevBaseUrl();
 
 export const env = {
   appEnv: extra.appEnv ?? 'development',

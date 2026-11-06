@@ -41,6 +41,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { AppText } from './AppText';
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- live content: the sheet shows this component's draft, error and callout state as it changes
 import { BottomSheet } from './overlay/declarative';
+import type { ViewInstance } from './native-refs';
 import { placeCallout, type Box } from './palette/callout';
 import { Checker } from './palette/Checker';
 import { nativeColorPickerAvailable, pickNativeColor } from './palette/native-picker';
@@ -115,7 +116,7 @@ export function Palette({
   const [callout, setCallout] = useState<CalloutTarget | null>(null);
   const [calloutSize, setCalloutSize] = useState<{ width: number; height: number } | null>(null);
   const [bodyWidth, setBodyWidth] = useState(0);
-  const bodyRef = useRef<View>(null);
+  const bodyRef = useRef<ViewInstance>(null);
   /** The swatch under the finger — async measurements for any other are stale. */
   const pressedRef = useRef<HexColor | null>(null);
 
@@ -161,7 +162,7 @@ export function Palette({
     if (picked && picked !== value) onChange(picked);
   };
 
-  const showCallout = (swatch: PaletteSwatch, element: View) => {
+  const showCallout = (swatch: PaletteSwatch, element: ViewInstance) => {
     const body = bodyRef.current;
     if (!body) return;
     pressedRef.current = swatch.value;
@@ -440,14 +441,14 @@ interface SwatchProps {
   selected: boolean;
   skin: PaletteSkin;
   testID: string;
-  onPressIn: (swatch: PaletteSwatch, element: View) => void;
+  onPressIn: (swatch: PaletteSwatch, element: ViewInstance) => void;
   onPressOut: () => void;
   onPress: () => void;
 }
 
 function Swatch({ swatch, selected, skin, testID, onPressIn, onPressOut, onPress }: SwatchProps) {
   const { tokens, reduceMotion } = useTheme();
-  const ref = useRef<View>(null);
+  const ref = useRef<ViewInstance>(null);
   const pop = useMotionProgress();
   // Scale-up is size-proportional growth: off inside the grid's ScrollBox.
   const insideScrollBox = useInsideScrollBox();

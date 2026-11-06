@@ -67,9 +67,9 @@ export function bevelBorder(bevel: BevelTokens, kind: 'raised' | 'sunken'): View
   };
 }
 
-/** Vertical CSS gradient (RN ≥ 0.80 renders it natively on the New Architecture). */
+/** Vertical CSS gradient (RN renders it natively; a stable style since 0.88). */
 function verticalGradient(top: string, bottom: string): ViewStyle {
-  return { experimental_backgroundImage: `linear-gradient(${top}, ${bottom})` };
+  return { backgroundImage: `linear-gradient(${top}, ${bottom})` };
 }
 
 /** Button face gradient of office push-buttons / task-pane headers. */

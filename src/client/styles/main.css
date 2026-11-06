@@ -185,20 +185,8 @@ a {
 /* Sign-in controls inside .app-controls (src/client/auth/account-controls.tsx). */
 .account-controls {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--space-2);
-}
-
-.account-controls .field {
-  position: relative;
-  width: 10rem;
-}
-
-/* Overlays below the input so an error never shifts the header row. */
-.account-controls .field__error {
-  position: absolute;
-  top: 100%;
-  white-space: nowrap;
 }
 
 .account-controls__user {
@@ -211,6 +199,18 @@ a {
 
 .app-main {
   padding-top: var(--space-5);
+}
+
+/* /sign-in-failed: one narrow column. */
+.sign-in-failed {
+  max-width: 28rem;
+}
+
+.sign-in-failed__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block: var(--space-4);
 }
 
 /* ── Button ───────────────────────────────────────────────────────────────── */
@@ -234,6 +234,11 @@ a {
 .btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+/* A Button with `to` renders an <a> wearing the button look — no link underline. */
+.btn--link {
+  text-decoration: none;
 }
 
 .btn--primary {
@@ -297,6 +302,22 @@ a {
 
 .field__input:disabled {
   opacity: 0.55;
+}
+
+/* TextArea: grows with its rows instead of the single-line control height. */
+.field__input--multiline {
+  height: auto;
+  padding-block: var(--space-2);
+  line-height: 1.5;
+  resize: vertical;
+  /* A tall box is a surface, not a pill: the kids skin's pill-shaped
+     control radius would bend it into a capsule. */
+  border-radius: min(var(--radius-control), var(--radius-surface));
+}
+
+.field__hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
 }
 
 .field__error {

@@ -88,6 +88,8 @@ bun run dev:mobile        # Expo 개발 서버 (앱은 위 서버를 API로 사�
 ```
 
 DB 없이 바로 실행하려면 `.env`에서 `DB_DRIVER=memory`로 바꾸면 됩니다(테스트도 이 드라이버를 사용).
+다른 프로젝트의 Postgres와 함께 띄우려면 `.env`의 `POSTGRES_PORT`와 `DATABASE_URL`의 포트를 같이 바꿉니다
+(다른 Postgres가 이미 그 포트를 쓰고 있으면 `db:setup`이 비밀번호 오류로 바로 멈춥니다).
 
 `bun install`은 워크스페이스 루트에서 한 번만 실행하면 앱 의존성까지 함께 설치됩니다.
 

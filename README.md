@@ -295,8 +295,12 @@ SIGTERM/SIGINT 수신 시: ① readiness가 즉시 503으로 바뀌어 LB가 트
 - **아직 없는 것**: 비공개(참여자만 읽는) 방과 운영자 역할, 입력 중·읽음 표시, 메시지 수정·삭제,
   도배 제한, 지난 채팅 더 불러오기.
 - **모바일 앱**: 서버 쪽 채팅(HTTP·`/ws/chat`·presence)은 앱도 그대로 쓸 수 있지만, **앱 채팅 화면은 아직
-  없습니다.** 계약(`@shared/domain/chat`)은 공통이고, 메시지 합치기(`src/client/chat/messages.ts`)와 소켓
-  공유·재연결(`chat-connection.ts`)은 브라우저 API에 기대지 않습니다. 앱으로 옮길 때 바꿀 곳은 두 군데입니다.
+  없습니다.** 계약(`@shared/domain/chat`)은 공통이고, 메시지 합치기(`src/client/chat/messages.ts`)는 브라우저
+  API에 기대지 않습니다. 앱으로 옮길 때 바꿀 곳은 세 군데입니다.
+  - 소켓 공유·재연결(`chat-connection.ts`): 페이지를 떠나면(`pagehide`) 소켓을 닫고 bfcache에서 돌아오면
+    (`pageshow`) 다시 엽니다. 이 이벤트를 받는 대상이 생성자의 세 번째 인자 `page`이고 기본값은 `window`입니다.
+    RN에는 `window`가 있지만 `addEventListener`가 없으므로, 앱에서는 `page`를 꼭 넘겨야 합니다(예:
+    `AppState`의 background → `pagehide`, active → `pageshow`로 옮겨 주는 `EventTarget`).
   - 알림 묶기(`chat-room.ts`): 웹은 애니메이션 프레임과 숨은 탭 감지를 씁니다. 앱에서는 `AppState`로
     바꿔야 합니다.
   - 게스트 id(`guest-id.ts`): 웹은 `sessionStorage`에 둡니다. 앱에서는 메모리나 기기 저장소에 둡니다.

@@ -80,7 +80,9 @@ export function ThemeProvider({ children }: PropsWithChildren) {
   }, []);
 
   // Derived, not stored: the rendered scheme follows mode + device setting.
-  const scheme: ColorSchemeName = mode === 'system' ? (deviceScheme ?? 'light') : mode;
+  // The device may report no preference (`unspecified`, or null) → light.
+  const scheme: ColorSchemeName =
+    mode === 'system' ? (deviceScheme === 'dark' ? 'dark' : 'light') : mode;
 
   const value = useMemo<ThemeContextValue>(
     () => ({

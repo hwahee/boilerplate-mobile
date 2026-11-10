@@ -26,6 +26,7 @@ import { useLocale } from '../../../i18n/LocaleProvider';
 import { useTheme } from '../../../theme/ThemeProvider';
 import { AppText } from '../../AppText';
 import { IconButton } from '../../IconButton';
+import type { ViewInstance } from '../../native-refs';
 import { ScrollBox } from '../../ScrollBox';
 import type { OverlayKind, OverlayPresentation } from './types';
 
@@ -56,7 +57,7 @@ export function OverlayPanel({
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
   const [progress] = useState(() => new Animated.Value(0));
-  const titleRef = useRef<View>(null);
+  const titleRef = useRef<ViewInstance>(null);
   const titleId = useId();
 
   const onClosedRef = useRef(onClosed);

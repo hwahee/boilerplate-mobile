@@ -22,7 +22,7 @@ import { AccessibilityInfo, Platform, useColorScheme } from 'react-native';
 import { KV_KEYS, kvStore } from '../storage/kv-store';
 import {
   getTokens,
-  isDesignVariant,
+  designVariantFrom,
   type ColorSchemeName,
   type DesignVariant,
   type Tokens,
@@ -49,7 +49,7 @@ const THEME_MODES: readonly ThemeMode[] = ['system', 'light', 'dark'];
 export function ThemeProvider({ children }: PropsWithChildren) {
   const deviceScheme = useColorScheme(); // re-renders on device theme change
   const [mode, setModeState] = useState<ThemeMode>('system');
-  const [variant, setVariantState] = useState<DesignVariant>('a');
+  const [variant, setVariantState] = useState<DesignVariant>('standard');
   const [reduceMotion, setReduceMotion] = useState(false);
 
   useEffect(() => {
@@ -57,7 +57,9 @@ export function ThemeProvider({ children }: PropsWithChildren) {
       if (THEME_MODES.includes(stored as ThemeMode)) setModeState(stored as ThemeMode);
     });
     void kvStore.getString(KV_KEYS.designVariant).then((stored) => {
-      if (isDesignVariant(stored)) setVariantState(stored);
+      // Also reads choices saved as `a` / `b` before the rename (upstream #28).
+      const restored = designVariantFrom(stored);
+      if (restored) setVariantState(restored);
     });
   }, []);
 

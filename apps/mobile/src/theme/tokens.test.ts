@@ -8,7 +8,14 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { DESIGN_VARIANTS, getTokens, isDesignVariant, type ColorTokens } from './tokens';
+import {
+  DESIGN_VARIANTS,
+  designVariantFrom,
+  getTokens,
+  isDesignVariant,
+  type ColorTokens,
+  type DesignVariant,
+} from './tokens';
 
 const css = readFileSync(
   join(import.meta.dir, '../../../../src/client/styles/tokens.css'),
@@ -17,7 +24,12 @@ const css = readFileSync(
 
 /** Custom properties declared in the block whose selector is exactly `selector`. */
 function block(selector: string): Record<string, string> {
-  const start = css.indexOf(`${selector} {`);
+  // The whole selector, not the tail of a list: `[data-design='contrast'] {`
+  // also ends `[data-design='standard'],\n[data-design='contrast'] {`.
+  let start = css.indexOf(`${selector} {`);
+  while (start >= 0 && !/(^|\})\s*$/.test(css.slice(0, start))) {
+    start = css.indexOf(`${selector} {`, start + 1);
+  }
   if (start < 0) throw new Error(`selector not found: ${selector}`);
   const body = css.slice(css.indexOf('{', start) + 1, css.indexOf('}', start));
   const vars: Record<string, string> = {};
@@ -66,8 +78,28 @@ const COLOR_MAP: Record<string, keyof ColorTokens> = {
   'color-focus': 'focus',
 };
 
-describe.each(['office', 'kids'] as const)('%s skin matches the web', (variant) => {
-  const sizing = block(`[data-design='${variant}']`);
+/** The web's sizing custom properties for a skin, as the cascade applies them. */
+function sizingOf(variant: DesignVariant): Record<string, string> {
+  // standard and contrast share one block; contrast then overrides a few lines.
+  const shared = block(`[data-design='standard'],\n[data-design='contrast']`);
+  if (variant === 'standard') return shared;
+  if (variant === 'contrast') return { ...shared, ...block(`[data-design='contrast']`) };
+  return block(`[data-design='${variant}']`);
+}
+
+/**
+ * The weight a phone browser renders for a CSS weight: system fonts come in
+ * hundreds, and CSS font matching resolves a weight above 500 upward
+ * (650 → 700) and one below downward.
+ */
+function renderedWeight(css: string): string {
+  const weight = Number(css);
+  if (weight % 100 === 0) return css;
+  return String(weight > 500 ? Math.ceil(weight / 100) * 100 : Math.floor(weight / 100) * 100);
+}
+
+describe.each([...DESIGN_VARIANTS])('%s skin matches the web', (variant: DesignVariant) => {
+  const sizing = sizingOf(variant);
 
   test.each(['light', 'dark'] as const)('%s colors', (scheme) => {
     const web = block(`[data-design='${variant}'][data-theme='${scheme}']`);
@@ -83,7 +115,7 @@ describe.each(['office', 'kids'] as const)('%s skin matches the web', (variant) 
     expect(type.heading).toBe(points(resolve(sizing, 'font-size-xl')));
     expect(type.body).toBe(points(resolve(sizing, 'font-size-body')));
     expect(type.caption).toBe(points(resolve(sizing, 'font-size-sm')));
-    expect(type.emphasis).toBe(resolve(sizing, 'font-weight-heading') as typeof type.emphasis);
+    expect(type.emphasis as string).toBe(renderedWeight(resolve(sizing, 'font-weight-heading')));
     expect(type.lineHeight?.body).toBe(parseFloat(resolve(sizing, 'line-height-body')));
   });
 
@@ -94,6 +126,13 @@ describe.each(['office', 'kids'] as const)('%s skin matches the web', (variant) 
     expect(tokens.radius.control).toBe(points(resolve(sizing, 'radius-control')));
     expect(tokens.radius.surface).toBe(points(resolve(sizing, 'radius-surface')));
     expect(tokens.borderWidth).toBe(points(resolve(sizing, 'border-width')));
+    expect(tokens.focusRingWidth).toBe(points(resolve(sizing, 'focus-ring-width')));
+  });
+
+  test.each(['light', 'dark'] as const)('%s scrim', (scheme) => {
+    // rgb(0 0 0 / 25%) ↔ rgba(0, 0, 0, 0.25); the web scrim is per skin, not per theme.
+    const alpha = /\/\s*([\d.]+)%/.exec(resolve(sizing, 'overlay-scrim'))?.[1];
+    expect(getTokens(variant, scheme).colors.overlay).toBe(`rgba(0, 0, 0, ${Number(alpha) / 100})`);
   });
 
   test('motion', () => {
@@ -138,7 +177,7 @@ describe('kids-only tokens', () => {
 
 describe('overlay tokens match the web :root', () => {
   test('geometry', () => {
-    const { overlay } = getTokens('a', 'light');
+    const { overlay } = getTokens('standard', 'light');
     expect(overlay.widthSm).toBe(points(resolve(root, 'overlay-width-sm')));
     expect(overlay.widthMd).toBe(points(resolve(root, 'overlay-width-md')));
     expect(overlay.widthLg).toBe(points(resolve(root, 'overlay-width-lg')));
@@ -146,30 +185,51 @@ describe('overlay tokens match the web :root', () => {
     expect(overlay.scrollBleed).toBe(points(resolve(root, 'scroll-bleed')));
     expect(`${overlay.sheetMaxHeight * 100}dvh`).toBe(resolve(root, 'sheet-max-height'));
   });
-
-  test.each(['office', 'kids'] as const)('%s scrim', (variant) => {
-    const sizing = block(`[data-design='${variant}']`);
-    // rgb(0 0 0 / 25%) ↔ rgba(0, 0, 0, 0.25)
-    const alpha = /\/\s*([\d.]+)%/.exec(resolve(sizing, 'overlay-scrim'))?.[1];
-    expect(getTokens(variant, 'light').colors.overlay).toBe(
-      `rgba(0, 0, 0, ${Number(alpha) / 100})`,
-    );
-  });
 });
 
 describe('design variants', () => {
-  test('A and B keep their mobile values (no web port)', () => {
-    const a = getTokens('a', 'light');
-    expect(a.controlHeight).toBe(a.minTouchTarget);
-    expect(a.radius.control).toBe(a.radius.md);
-    expect(a.radius.surface).toBe(a.radius.lg);
-    expect(a.bevel).toBeNull();
-    expect(a.motion.durationFast).toBe(ms(root['duration-fast']!));
+  test('standard and contrast have no bevel and calm motion', () => {
+    for (const variant of ['standard', 'contrast'] as const) {
+      const tokens = getTokens(variant, 'light');
+      expect(tokens.bevel).toBeNull();
+      expect(tokens.motion.easing).toEqual([0.25, 0.1, 0.25, 1]); // CSS `ease`
+    }
   });
+
+  test.each(['light', 'dark'] as const)(
+    'contrast (%s) is standard with its own colors and thicker lines only',
+    (scheme) => {
+      const { colors, borderWidth, focusRingWidth, variant, ...shape } = getTokens(
+        'contrast',
+        scheme,
+      );
+      const standard = getTokens('standard', scheme);
+      expect(variant).toBe('contrast');
+      expect(colors).not.toEqual(standard.colors);
+      expect([borderWidth, focusRingWidth]).toEqual([2, 4]);
+      const {
+        colors: _c,
+        borderWidth: _b,
+        focusRingWidth: _f,
+        variant: _v,
+        ...standardShape
+      } = standard;
+      expect(shape).toEqual(standardShape);
+    },
+  );
 
   test('isDesignVariant accepts exactly the four variants', () => {
     for (const variant of DESIGN_VARIANTS) expect(isDesignVariant(variant)).toBe(true);
+    expect(isDesignVariant('a')).toBe(false);
     expect(isDesignVariant('c')).toBe(false);
     expect(isDesignVariant(null)).toBe(false);
+  });
+
+  test('choices saved before the rename still read (a → standard, b → contrast)', () => {
+    expect(designVariantFrom('a')).toBe('standard');
+    expect(designVariantFrom('b')).toBe('contrast');
+    expect(designVariantFrom('kids')).toBe('kids');
+    expect(designVariantFrom('c')).toBeUndefined();
+    expect(designVariantFrom(null)).toBeUndefined();
   });
 });
